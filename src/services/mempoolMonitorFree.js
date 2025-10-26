@@ -181,7 +181,6 @@ export class MempoolMonitorFree {
 
       // Always show activity status, even if no transactions
       if (this.webServer) {
-        const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
         const statusMessage = signatures.length > 0
           ? `🔍 Found ${signatures.length} transactions - monitoring ${tokenStr}...`
           : `🔍 Monitoring ${tokenStr}... - no recent transactions (token may be new)`;
@@ -198,13 +197,13 @@ export class MempoolMonitorFree {
         });
       }
 
+      const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
+
       if (signatures.length === 0) {
-        const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
         Logger.log(`No recent transactions for token ${tokenStr}... Token might be new or inactive.`);
         return;
       }
 
-      const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
       Logger.log(`Found ${signatures.length} recent transactions for token ${tokenStr}...`);
       Logger.log(`Signatures: ${signatures.map(s => s.signature.substring(0, 8)).join(', ')}`);
 
