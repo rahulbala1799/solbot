@@ -123,36 +123,12 @@ export class MempoolMonitorFree {
   }
 
   /**
-   * Check recent transactions (polling strategy)
+   * Check recent transactions using Helius Parse API
    */
   async checkRecentTransactions(onBuyDetected) {
     try {
-      // Test connection first
-      const isWorking = await this.rpcManager.testConnection();
-      if (!isWorking) {
-        Logger.warn('RPC connection failed, switching...');
-        this.connection = this.rpcManager.getConnection();
-        
-        // If still failing after switch, emit a status update and show demo mode
-        if (this.webServer) {
-          this.webServer.emitTransaction({
-            signature: `rpc_fail_${Date.now()}`,
-            type: 'error',
-            timestamp: new Date().toISOString(),
-            accounts: 0,
-            solAmount: 0,
-            transactionType: 'error',
-            message: `⚠️ RPC connection issues - trying different endpoints...`
-          });
-          
-          // Show demo transactions when RPC fails
-          this.showDemoTransactions();
-        }
-        return; // Skip this cycle
-      }
-      
-      // Get current connection (may switch if rate limited)
-      this.connection = this.rpcManager.getConnection();
+      // Use Helius Parse API for better transaction parsing
+      const parseApiUrl = 'https://api.helius.xyz/v0/transactions/?api-key=8fa5a141-a272-488e-8dba-edb177602cf9';
       
       // Get bonding curve address
       const bondingCurve = await this.deriveBondingCurveAddress(this.targetTokenAddress);
@@ -164,10 +140,32 @@ export class MempoolMonitorFree {
         'confirmed'
       );
 
-      // Reset rate limit counter on successful request
-      this.rpcManager.resetRateLimit();
-      
+      if (signatures.length === 0) {
+        Logger.log(`No recent transactions for token ${this.targetTokenAddress.toString().substring(0, 8)}...`);
+        return;
+      }
+
       Logger.log(`Found ${signatures.length} recent transactions for token ${this.targetTokenAddress.toString().substring(0, 8)}...`);
+
+      // Use Helius Parse API to get detailed transaction data
+      const signatureList = signatures.map(sig => sig.signature);
+      const parseResponse = await fetch(parseApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transactions: signatureList
+        })
+      });
+
+      if (!parseResponse.ok) {
+        throw new Error(`Parse API error: ${parseResponse.status}`);
+      }
+
+      const parsedTransactions = await parseResponse.json();
+      
+      Logger.log(`Parsed ${parsedTransactions.length} transactions using Helius Parse API`);
 
       // Emit monitoring status
       if (this.webServer) {
@@ -175,16 +173,16 @@ export class MempoolMonitorFree {
           signature: `monitor_${Date.now()}`,
           type: 'monitor',
           timestamp: new Date().toISOString(),
-          accounts: signatures.length,
+          accounts: parsedTransactions.length,
           solAmount: 0,
           transactionType: 'monitor',
-          message: `🔍 Found ${signatures.length} recent transactions for ${this.targetTokenAddress.toString().substring(0, 8)}...`
+          message: `🔍 Parsed ${parsedTransactions.length} transactions for ${this.targetTokenAddress.toString().substring(0, 8)}...`
         });
       }
 
-      // Process each signature
-      for (const sigInfo of signatures) {
-        const signature = sigInfo.signature;
+      // Process parsed transactions
+      for (const parsedTx of parsedTransactions) {
+        const signature = parsedTx.transaction.signatures[0];
         
         // Skip if already processed
         if (this.processedSignatures.has(signature)) {
@@ -193,58 +191,34 @@ export class MempoolMonitorFree {
 
         this.processedSignatures.add(signature);
 
-        // Emit basic transaction info immediately
+        // Parse transaction using Helius data
+        const transactionInfo = this.parseHeliusTransaction(parsedTx);
+        
+        // Emit transaction to web interface
         if (this.webServer) {
           this.webServer.emitTransaction({
             signature: signature,
-            type: 'transaction',
+            type: transactionInfo.type || 'transaction',
             timestamp: new Date().toISOString(),
-            accounts: 0,
-            solAmount: 0,
-            transactionType: 'transaction',
-            message: `📄 Transaction: ${signature.substring(0, 8)}... (Processing...)`
+            accounts: parsedTx.transaction.message.accountKeys.length,
+            solAmount: transactionInfo.solAmount,
+            tokenAmount: transactionInfo.tokenAmount,
+            transactionType: transactionInfo.transactionType,
+            message: transactionInfo.message || `Transaction: ${signature.substring(0, 8)}...`
           });
         }
-
-        // Fetch and parse transaction
-        try {
-          const tx = await this.connection.getTransaction(signature, {
-            commitment: 'confirmed',
-            maxSupportedTransactionVersion: 0
-          });
-
-          if (tx) {
-            // Emit detailed transaction to web interface
-            if (this.webServer) {
-              const transactionInfo = this.parseTransactionDetails(tx);
-              this.webServer.emitTransaction({
-                signature: signature,
-                type: transactionInfo.type || 'transaction',
-                timestamp: new Date().toISOString(),
-                accounts: tx.transaction.message.getAccountKeys().staticAccountKeys.length,
-                solAmount: transactionInfo.solAmount,
-                tokenAmount: transactionInfo.tokenAmount,
-                transactionType: transactionInfo.transactionType,
-                message: transactionInfo.message || `Transaction: ${signature.substring(0, 8)}...`
-              });
-            }
-            
-            const buyInfo = this.parseBuyOrder(tx);
-            if (buyInfo) {
-              Logger.success('Buy order detected via polling!', buyInfo);
-              await onBuyDetected(buyInfo);
-            }
-          }
-        } catch (error) {
-          if (error.message?.includes('429')) {
-            // Handle rate limit
-            this.rpcManager.handleRateLimit();
-            Logger.warn('Rate limited, switching RPC...');
-            this.connection = this.rpcManager.getConnection();
-            break; // Exit loop and try again next time
-          } else if (!error.message?.includes('not found')) {
-            Logger.error(`Error fetching transaction ${signature}`, error.message);
-          }
+        
+        // Check for buy orders
+        if (transactionInfo.transactionType === 'buy' && transactionInfo.solAmount >= 0.2) {
+          const buyInfo = {
+            signature: signature,
+            solAmount: transactionInfo.solAmount,
+            tokenAddress: this.targetTokenAddress.toString(),
+            timestamp: new Date().toISOString()
+          };
+          
+          Logger.success('Buy order detected via Helius Parse!', buyInfo);
+          await onBuyDetected(buyInfo);
         }
       }
     } catch (error) {
@@ -253,9 +227,58 @@ export class MempoolMonitorFree {
         this.rpcManager.handleRateLimit();
         Logger.warn('Rate limited, switching RPC...');
         this.connection = this.rpcManager.getConnection();
+      } else if (error.message?.includes('Parse API error')) {
+        Logger.warn('Helius Parse API error, falling back to basic RPC...');
+        // Fallback to basic transaction fetching
+        await this.checkRecentTransactionsBasic(onBuyDetected);
       } else {
         Logger.error('Error checking recent transactions', error.message);
       }
+    }
+  }
+
+  /**
+   * Fallback method for basic transaction checking
+   */
+  async checkRecentTransactionsBasic(onBuyDetected) {
+    try {
+      // Get bonding curve address
+      const bondingCurve = await this.deriveBondingCurveAddress(this.targetTokenAddress);
+      
+      // Fetch recent signatures for the bonding curve
+      const signatures = await this.connection.getSignaturesForAddress(
+        bondingCurve,
+        { limit: 3 }, // Reduced limit for fallback
+        'confirmed'
+      );
+
+      Logger.log(`Fallback: Found ${signatures.length} recent transactions`);
+
+      // Process each signature with basic parsing
+      for (const sigInfo of signatures) {
+        const signature = sigInfo.signature;
+        
+        if (this.processedSignatures.has(signature)) {
+          continue;
+        }
+
+        this.processedSignatures.add(signature);
+
+        // Emit basic transaction info
+        if (this.webServer) {
+          this.webServer.emitTransaction({
+            signature: signature,
+            type: 'transaction',
+            timestamp: new Date().toISOString(),
+            accounts: 0,
+            solAmount: 0,
+            transactionType: 'transaction',
+            message: `📄 Transaction: ${signature.substring(0, 8)}... (Basic)`
+          });
+        }
+      }
+    } catch (error) {
+      Logger.error('Error in fallback transaction checking', error.message);
     }
   }
 
@@ -447,6 +470,65 @@ export class MempoolMonitorFree {
         tokenAmount: 0,
         transactionType: 'unknown',
         message: `Transaction: ${tx.transaction.signatures[0].substring(0, 8)}...`
+      };
+    }
+  }
+
+  /**
+   * Parse Helius transaction data
+   */
+  parseHeliusTransaction(parsedTx) {
+    try {
+      const signature = parsedTx.transaction.signatures[0];
+      const events = parsedTx.events || [];
+      const nativeTransfers = parsedTx.nativeTransfers || [];
+      const tokenTransfers = parsedTx.tokenTransfers || [];
+      
+      // Calculate SOL amount from native transfers
+      let solAmount = 0;
+      for (const transfer of nativeTransfers) {
+        solAmount += transfer.amount / 1e9; // Convert lamports to SOL
+      }
+      
+      // Determine transaction type
+      let transactionType = 'unknown';
+      let message = `Transaction: ${signature.substring(0, 8)}...`;
+      
+      // Check for pump.fun specific events
+      const pumpEvents = events.filter(event => 
+        event.type === 'SWAP' || 
+        event.type === 'TOKEN_MINT' ||
+        event.type === 'TOKEN_BURN'
+      );
+      
+      if (pumpEvents.length > 0) {
+        if (solAmount > 0) {
+          transactionType = 'buy';
+          message = `🟢 BUY: ${solAmount.toFixed(4)} SOL`;
+        } else {
+          transactionType = 'sell';
+          message = `🔴 SELL: ${Math.abs(solAmount).toFixed(4)} SOL`;
+        }
+      } else if (tokenTransfers.length > 0) {
+        transactionType = 'pump';
+        message = `⚡ PUMP: ${solAmount.toFixed(4)} SOL`;
+      }
+      
+      return {
+        type: transactionType,
+        solAmount: Math.abs(solAmount),
+        tokenAmount: tokenTransfers.length,
+        transactionType: transactionType,
+        message: message
+      };
+    } catch (error) {
+      Logger.error('Error parsing Helius transaction', error);
+      return {
+        type: 'unknown',
+        solAmount: 0,
+        tokenAmount: 0,
+        transactionType: 'unknown',
+        message: `Transaction: ${parsedTx.transaction.signatures[0].substring(0, 8)}...`
       };
     }
   }
