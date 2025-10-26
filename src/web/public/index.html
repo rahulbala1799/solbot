@@ -258,6 +258,14 @@
             <div class="status-card">
                 <h3>Monitoring</h3>
                 <div id="monitoringStatus">Loading...</div>
+                <div style="margin-top: 15px;">
+                    <label for="tokenInput" style="display: block; margin-bottom: 5px; font-weight: bold;">Change Token:</label>
+                    <input type="text" id="tokenInput" placeholder="Enter new token address" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px;">
+                    <button onclick="changeToken()" style="background: #e94560; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                        Update Token
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -333,7 +341,8 @@
         // Transaction updates
         socket.on('transaction', (data) => {
             console.log('Received transaction:', data);
-            addActivity('transaction', data.message || `Transaction processed: ${data.signature?.substring(0, 8)}...`, data);
+            const message = data.message || `${data.transactionType || 'Transaction'}: ${data.signature?.substring(0, 8)}...`;
+            addActivity(data.transactionType || 'transaction', message, data);
         });
 
         socket.on('buy-detected', (data) => {
@@ -481,6 +490,49 @@
             .catch(() => {
                 updateBotStatus({ status: 'offline', data: { message: 'Cannot connect to bot' } });
             });
+
+        // Function to change monitored token
+        function changeToken() {
+            const newToken = document.getElementById('tokenInput').value.trim();
+            if (!newToken) {
+                alert('Please enter a token address');
+                return;
+            }
+            
+            // Validate token address (basic check)
+            if (newToken.length < 32) {
+                alert('Invalid token address');
+                return;
+            }
+            
+            // Send token change request to server
+            fetch('/api/change-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tokenAddress: newToken })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Token updated successfully!');
+                    // Update display
+                    document.getElementById('tokenInput').value = '';
+                    addActivity('info', `🔄 Token changed to: ${newToken.substring(0, 8)}...`, {
+                        timestamp: new Date().toISOString(),
+                        signature: 'token-change',
+                        message: 'Token monitoring updated'
+                    });
+                } else {
+                    alert('Failed to update token: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error changing token:', error);
+                alert('Error changing token');
+            });
+        }
     </script>
 </body>
 </html>

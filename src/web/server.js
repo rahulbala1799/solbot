@@ -26,6 +26,7 @@ export class WebServer {
   setupRoutes() {
     // Serve static files
     this.app.use(express.static(path.join(__dirname, 'public')));
+    this.app.use(express.json()); // Parse JSON bodies
     
     // API routes
     this.app.get('/api/status', (req, res) => {
@@ -43,6 +44,22 @@ export class WebServer {
         sellOrdersExecuted: this.sellOrdersExecuted || 0,
         lastActivity: this.lastActivity || null
       });
+    });
+
+    this.app.post('/api/change-token', (req, res) => {
+      const { tokenAddress } = req.body;
+      
+      if (!tokenAddress) {
+        return res.json({ success: false, error: 'Token address is required' });
+      }
+      
+      // Emit token change event to bot
+      this.io.emit('changeToken', { tokenAddress });
+      
+      // Add activity log
+      this.addActivity(`Token changed to: ${tokenAddress.substring(0, 8)}...`);
+      
+      res.json({ success: true, message: 'Token change request sent' });
     });
 
     // Serve dashboard

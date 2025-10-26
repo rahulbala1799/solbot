@@ -67,6 +67,18 @@ export class SolanaBot {
       this.webServer = new WebServer(process.env.PORT || 3000);
       this.webServer.start();
 
+      // Listen for token change requests
+      this.webServer.io.on('connection', (socket) => {
+        socket.on('changeToken', async (data) => {
+          try {
+            Logger.log(`Changing token to: ${data.tokenAddress}`);
+            await this.changeToken(data.tokenAddress);
+          } catch (error) {
+            Logger.error('Error changing token', error);
+          }
+        });
+      });
+
       // Check initial balance
       const balance = await this.tokenTracker.getBalance();
       Logger.log(`Initial token balance: ${balance}`);
@@ -184,6 +196,54 @@ export class SolanaBot {
     } catch (error) {
       Logger.error('Error handling buy detection', error);
       this.webServer.emitError(error);
+    }
+  }
+
+  /**
+   * Change monitored token
+   */
+  async changeToken(newTokenAddress) {
+    try {
+      Logger.log(`Changing monitored token to: ${newTokenAddress}`);
+      
+      // Stop current monitoring
+      if (this.mempoolMonitor) {
+        await this.mempoolMonitor.stop();
+      }
+      
+      // Update token tracker
+      this.tokenTracker = new TokenTracker(
+        this.connection,
+        this.wallet.publicKey,
+        newTokenAddress
+      );
+      
+      await this.tokenTracker.initialize();
+      
+      // Update mempool monitor with new token
+      this.mempoolMonitor = new MempoolMonitorFree(
+        config.rpcUrl,
+        config.wssUrl,
+        newTokenAddress,
+        config.pumpProgramId,
+        this.webServer
+      );
+      
+      // Restart monitoring
+      if (this.isRunning) {
+        await this.mempoolMonitor.start(this.handleBuyDetected.bind(this));
+      }
+      
+      // Update web interface
+      this.webServer.emitBotStatus('running', {
+        message: `Now monitoring token: ${newTokenAddress.substring(0, 8)}...`,
+        targetToken: newTokenAddress
+      });
+      
+      Logger.success(`Token changed to: ${newTokenAddress}`);
+    } catch (error) {
+      Logger.error('Error changing token', error);
+      throw error;
     }
   }
 

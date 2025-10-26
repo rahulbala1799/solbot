@@ -125,12 +125,18 @@ export class MempoolMonitorFree {
 
       // Emit transaction to web interface for live monitoring
       if (this.webServer) {
+        // Try to parse transaction type and amount
+        const transactionInfo = this.parseTransactionDetails(tx);
+        
         this.webServer.emitTransaction({
           signature: signature,
-          type: 'pump_transaction',
+          type: transactionInfo.type || 'pump_transaction',
           timestamp: new Date().toISOString(),
           accounts: involvedAccounts.length,
-          message: `Processing pump.fun transaction: ${signature.substring(0, 8)}...`
+          solAmount: transactionInfo.solAmount,
+          tokenAmount: transactionInfo.tokenAmount,
+          transactionType: transactionInfo.transactionType,
+          message: transactionInfo.message || `Processing pump.fun transaction: ${signature.substring(0, 8)}...`
         });
       }
 
@@ -325,6 +331,56 @@ export class MempoolMonitorFree {
     this.processedSignatures.clear();
     
     Logger.success('Monitor stopped');
+  }
+
+  /**
+   * Parse transaction details for display
+   */
+  parseTransactionDetails(tx) {
+    try {
+      const logs = tx.meta?.logMessages || [];
+      const preBalances = tx.meta?.preBalances || [];
+      const postBalances = tx.meta?.postBalances || [];
+      
+      // Calculate SOL amount change
+      let solAmount = 0;
+      if (preBalances.length > 0 && postBalances.length > 0) {
+        const solChange = postBalances[0] - preBalances[0];
+        solAmount = Math.abs(solChange) / 1e9;
+      }
+      
+      // Determine transaction type based on logs
+      let transactionType = 'unknown';
+      let message = `Transaction: ${tx.transaction.signatures[0].substring(0, 8)}...`;
+      
+      if (logs.some(log => log.includes('buy') || log.includes('swap'))) {
+        transactionType = 'buy';
+        message = `🟢 BUY: ${solAmount.toFixed(4)} SOL`;
+      } else if (logs.some(log => log.includes('sell'))) {
+        transactionType = 'sell';
+        message = `🔴 SELL: ${solAmount.toFixed(4)} SOL`;
+      } else if (logs.some(log => log.includes('pump'))) {
+        transactionType = 'pump';
+        message = `⚡ PUMP: ${solAmount.toFixed(4)} SOL`;
+      }
+      
+      return {
+        type: transactionType,
+        solAmount: solAmount,
+        tokenAmount: 0, // Would need token account parsing
+        transactionType: transactionType,
+        message: message
+      };
+    } catch (error) {
+      Logger.error('Error parsing transaction details', error);
+      return {
+        type: 'unknown',
+        solAmount: 0,
+        tokenAmount: 0,
+        transactionType: 'unknown',
+        message: `Transaction: ${tx.transaction.signatures[0].substring(0, 8)}...`
+      };
+    }
   }
 
   /**
