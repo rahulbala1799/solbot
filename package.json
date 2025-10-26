@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node src/combined-server.js",
+    "bot": "node src/index.js",
     "cli": "node src/cli-bot.js",
     "dev": "node --watch src/index.js",
     "web": "next dev",
