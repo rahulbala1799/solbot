@@ -188,13 +188,10 @@ export class MempoolMonitorFree {
       // Process parsed transactions
       for (const parsedTx of parsedTransactions) {
         try {
-          // Handle different response structures from Helius
-          let signature;
-          if (parsedTx.transaction && parsedTx.transaction.signatures) {
-            signature = parsedTx.transaction.signatures[0];
-          } else if (parsedTx.signature) {
-            signature = parsedTx.signature;
-          } else {
+          // Get signature from Helius response
+          const signature = parsedTx.signature;
+          
+          if (!signature) {
             Logger.warn('Could not find signature in parsed transaction:', parsedTx);
             continue;
           }
@@ -215,7 +212,7 @@ export class MempoolMonitorFree {
               signature: signature,
               type: transactionInfo.type || 'transaction',
               timestamp: new Date().toISOString(),
-              accounts: parsedTx.transaction?.message?.accountKeys?.length || 0,
+              accounts: parsedTx.accountData?.length || 0,
               solAmount: transactionInfo.solAmount,
               tokenAmount: transactionInfo.tokenAmount,
               transactionType: transactionInfo.transactionType,
@@ -498,15 +495,8 @@ export class MempoolMonitorFree {
    */
   parseHeliusTransaction(parsedTx) {
     try {
-      // Get signature safely
-      let signature;
-      if (parsedTx.transaction && parsedTx.transaction.signatures) {
-        signature = parsedTx.transaction.signatures[0];
-      } else if (parsedTx.signature) {
-        signature = parsedTx.signature;
-      } else {
-        signature = 'unknown';
-      }
+      // Get signature safely - Helius response has signature directly
+      const signature = parsedTx.signature || 'unknown';
       
       // Safely handle events - might be array, object, or undefined
       let events = [];
@@ -527,23 +517,12 @@ export class MempoolMonitorFree {
         }
       }
       
-      // Determine transaction type
+      // Determine transaction type based on Helius data
       let transactionType = 'transaction';
       let message = `Transaction: ${signature.substring(0, 8)}...`;
       
-      // Check for pump.fun specific events
-      let pumpEvents = [];
-      if (events.length > 0) {
-        pumpEvents = events.filter(event => 
-          event && event.type && (
-            event.type === 'SWAP' || 
-            event.type === 'TOKEN_MINT' ||
-            event.type === 'TOKEN_BURN'
-          )
-        );
-      }
-      
-      if (pumpEvents.length > 0) {
+      // Check transaction type from Helius
+      if (parsedTx.type === 'SWAP' && parsedTx.source === 'PUMP_AMM') {
         if (solAmount > 0) {
           transactionType = 'buy';
           message = `🟢 BUY: ${solAmount.toFixed(4)} SOL`;
@@ -555,10 +534,11 @@ export class MempoolMonitorFree {
         transactionType = 'pump';
         message = `⚡ PUMP: ${solAmount.toFixed(4)} SOL`;
       } else if (solAmount > 0) {
-        // If we have SOL movement but no specific events, it's still a transaction
         transactionType = 'transaction';
         message = `📄 Transaction: ${solAmount.toFixed(4)} SOL`;
       }
+      
+      Logger.log(`Parsed transaction: ${transactionType} - ${message}`);
       
       return {
         type: transactionType,
