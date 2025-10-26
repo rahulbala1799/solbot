@@ -548,6 +548,40 @@
                         message: 'Bot monitoring active'
                     });
                 }, 1000);
+
+                // Add test pump transactions to show the section is working
+                setTimeout(() => {
+                    addPumpActivity({
+                        signature: 'test_buy_123456',
+                        timestamp: new Date().toISOString(),
+                        transactionType: 'buy',
+                        solAmount: 0.25,
+                        accounts: 3,
+                        message: '🟢 BUY: 0.2500 SOL'
+                    });
+                }, 2000);
+
+                setTimeout(() => {
+                    addPumpActivity({
+                        signature: 'test_sell_789012',
+                        timestamp: new Date().toISOString(),
+                        transactionType: 'sell',
+                        solAmount: 0.15,
+                        accounts: 4,
+                        message: '🔴 SELL: 0.1500 SOL'
+                    });
+                }, 3000);
+
+                setTimeout(() => {
+                    addPumpActivity({
+                        signature: 'test_pump_345678',
+                        timestamp: new Date().toISOString(),
+                        transactionType: 'pump',
+                        solAmount: 0.50,
+                        accounts: 5,
+                        message: '⚡ PUMP: 0.5000 SOL'
+                    });
+                }, 4000);
             })
             .catch(() => {
                 updateBotStatus({ status: 'offline', data: { message: 'Cannot connect to bot' } });

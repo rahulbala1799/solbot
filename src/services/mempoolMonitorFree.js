@@ -349,19 +349,31 @@ export class MempoolMonitorFree {
         solAmount = Math.abs(solChange) / 1e9;
       }
       
-      // Determine transaction type based on logs
+      // Determine transaction type based on logs and program interactions
       let transactionType = 'unknown';
       let message = `Transaction: ${tx.transaction.signatures[0].substring(0, 8)}...`;
       
-      if (logs.some(log => log.includes('buy') || log.includes('swap'))) {
-        transactionType = 'buy';
-        message = `🟢 BUY: ${solAmount.toFixed(4)} SOL`;
-      } else if (logs.some(log => log.includes('sell'))) {
-        transactionType = 'sell';
-        message = `🔴 SELL: ${solAmount.toFixed(4)} SOL`;
-      } else if (logs.some(log => log.includes('pump'))) {
-        transactionType = 'pump';
-        message = `⚡ PUMP: ${solAmount.toFixed(4)} SOL`;
+      // Check for pump.fun program interactions
+      const programIds = tx.transaction.message.instructions.map(ix => 
+        tx.transaction.message.getAccountKeys().get(ix.programIdIndex)?.toString()
+      );
+      
+      const isPumpTransaction = programIds.some(id => 
+        id === '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P' || // pump.fun program
+        id === 'So11111111111111111111111111111111111111112' // SOL token program
+      );
+      
+      if (isPumpTransaction) {
+        if (logs.some(log => log.includes('buy') || log.includes('swap') || log.includes('Buy'))) {
+          transactionType = 'buy';
+          message = `🟢 BUY: ${solAmount.toFixed(4)} SOL`;
+        } else if (logs.some(log => log.includes('sell') || log.includes('Sell'))) {
+          transactionType = 'sell';
+          message = `🔴 SELL: ${solAmount.toFixed(4)} SOL`;
+        } else if (solAmount > 0.01) { // Any significant SOL movement on pump.fun
+          transactionType = 'pump';
+          message = `⚡ PUMP: ${solAmount.toFixed(4)} SOL`;
+        }
       }
       
       return {
