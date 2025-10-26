@@ -146,6 +146,7 @@ export class MempoolMonitorFree {
       }
 
       Logger.log(`Found ${signatures.length} recent transactions for token ${this.targetTokenAddress.toString().substring(0, 8)}...`);
+      Logger.log(`Signatures: ${signatures.map(s => s.signature.substring(0, 8)).join(', ')}`);
 
       // Use Helius Parse API to get detailed transaction data
       const signatureList = signatures.map(sig => sig.signature);
@@ -164,8 +165,35 @@ export class MempoolMonitorFree {
       }
 
       const parsedTransactions = await parseResponse.json();
-      
+
       Logger.log(`Parsed ${parsedTransactions.length} transactions using Helius Parse API`);
+
+      // If no transactions parsed, emit basic info for each signature
+      if (parsedTransactions.length === 0) {
+        for (const sigInfo of signatures) {
+          const signature = sigInfo.signature;
+
+          if (this.processedSignatures.has(signature)) {
+            continue;
+          }
+
+          this.processedSignatures.add(signature);
+
+          if (this.webServer) {
+            Logger.log(`Emitting basic transaction: ${signature.substring(0, 8)}...`);
+            this.webServer.emitTransaction({
+              signature: signature,
+              type: 'pump',
+              timestamp: new Date().toISOString(),
+              accounts: 0,
+              solAmount: 0,
+              tokenAmount: 0,
+              transactionType: 'pump',
+              message: `⚡ Transaction: ${signature.substring(0, 8)}... (detected)`
+            });
+          }
+        }
+      }
       
       // Debug: Log the structure of the first transaction
       if (parsedTransactions.length > 0) {
@@ -194,17 +222,19 @@ export class MempoolMonitorFree {
           // Parse transaction using Helius data
           const transactionInfo = this.parseHeliusTransaction(parsedTx);
 
-          // Emit transaction to web interface for display
-          if (this.webServer && transactionInfo.transactionType !== 'unknown') {
+          // Always emit transaction to web interface for display
+          if (this.webServer) {
+            Logger.log(`Emitting transaction: ${transactionInfo.transactionType} - ${signature.substring(0, 8)}...`);
+
             this.webServer.emitTransaction({
               signature: signature,
-              type: transactionInfo.type || 'transaction',
+              type: transactionInfo.type || 'pump',
               timestamp: new Date().toISOString(),
-              accounts: parsedTx.accountData?.length || 0,
+              accounts: parsedTx.accountData?.length || parsedTx.tokenTransfers?.length || 0,
               solAmount: transactionInfo.solAmount,
               tokenAmount: transactionInfo.tokenAmount,
-              transactionType: transactionInfo.transactionType,
-              message: transactionInfo.message || `Transaction: ${signature.substring(0, 8)}...`
+              transactionType: transactionInfo.transactionType || 'pump',
+              message: transactionInfo.message || `⚡ Transaction: ${signature.substring(0, 8)}...`
             });
           }
 
@@ -222,6 +252,22 @@ export class MempoolMonitorFree {
           }
         } catch (error) {
           Logger.error('Error processing parsed transaction:', error.message);
+
+          // Fallback: emit basic transaction info even if parsing fails
+          if (this.webServer) {
+            Logger.log(`Fallback emission for: ${signature.substring(0, 8)}...`);
+            this.webServer.emitTransaction({
+              signature: signature,
+              type: 'pump',
+              timestamp: new Date().toISOString(),
+              accounts: 0,
+              solAmount: 0,
+              tokenAmount: 0,
+              transactionType: 'pump',
+              message: `⚡ Transaction: ${signature.substring(0, 8)}... (parsed)`
+            });
+          }
+
           continue;
         }
       }
@@ -507,11 +553,11 @@ export class MempoolMonitorFree {
       }
       
       // Determine transaction type based on Helius data
-      let transactionType = 'transaction';
-      let message = `Transaction: ${signature.substring(0, 8)}...`;
-      
-      // Check transaction type from Helius
-      if (parsedTx.type === 'SWAP' && parsedTx.source === 'PUMP_AMM') {
+      let transactionType = 'pump'; // Default to pump for pump.fun transactions
+      let message = `⚡ PUMP: ${solAmount.toFixed(4)} SOL`;
+
+      // Check if it's a pump.fun swap
+      if (parsedTx.type === 'SWAP') {
         if (solAmount > 0) {
           transactionType = 'buy';
           message = `🟢 BUY: ${solAmount.toFixed(4)} SOL`;
@@ -519,9 +565,6 @@ export class MempoolMonitorFree {
           transactionType = 'sell';
           message = `🔴 SELL: ${Math.abs(solAmount).toFixed(4)} SOL`;
         }
-      } else if (tokenTransfers.length > 0) {
-        transactionType = 'pump';
-        message = `⚡ PUMP: ${solAmount.toFixed(4)} SOL`;
       } else if (solAmount > 0) {
         transactionType = 'transaction';
         message = `📄 Transaction: ${solAmount.toFixed(4)} SOL`;

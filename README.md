@@ -1,211 +1,101 @@
-# Solana Mempool Trading Bot
+# Solana Trading Bot
 
-A Solana trading bot that monitors the mempool for large buy orders on pump.fun tokens and automatically executes sell orders when specific conditions are met.
+A real-time Solana mempool monitoring bot that automatically sells tokens when large buy orders are detected.
 
-## Features
+## 🚀 **Quick Start**
 
-- **Real-time Mempool Monitoring**: Watches pending transactions for the target token
-- **Configurable Thresholds**: Set custom SOL amount triggers and sell percentages
-- **Automatic Trading**: Executes sells when buy orders exceed the threshold
-- **Token Balance Tracking**: Monitors your token holdings in real-time
-- **Comprehensive Logging**: Detailed logs of all bot activities
+### **Option 1: Railway Dashboard (Deployed)**
+Visit: https://solana-bot-production-a6d2.up.railway.app
+- ✅ Live monitoring dashboard
+- ✅ Real-time transaction feed
+- ✅ Professional UI
 
-## How It Works
-
-1. The bot monitors Solana transactions for your target token using FREE public RPC endpoints
-2. Uses three monitoring strategies: program logs, account changes, and periodic polling
-3. When it detects a buy order over the configured threshold (default: 0.2 SOL)
-4. It automatically sells a specified percentage of your holdings (default: 25%)
-
-**Note:** Works with free Solana RPC endpoints - no premium RPC needed!
-
-## Prerequisites
-
-- Node.js 18+ installed
-- A Solana wallet with:
-  - SOL for transaction fees
-  - The target token you want to trade
-- Access to Solana RPC (free public endpoints work fine: api.mainnet-beta.solana.com)
-
-## Installation
-
-1. Clone the repository:
+### **Option 2: CLI Bot (Terminal)**
 ```bash
-git clone <your-repo-url>
-cd botat1
+npm run cli
+```
+- ✅ Pure command-line interface
+- ✅ Fastest performance
+- ✅ Best for production trading
+
+### **Option 3: Development**
+```bash
+npm start  # Bot + HTML dashboard on localhost:3001
+npm run web  # Next.js dashboard (separate)
 ```
 
-2. Install dependencies:
-```bash
-npm install
-```
+## 🎯 **Features**
 
-3. Create a `.env` file based on `.env.example`:
-```bash
-cp .env.example .env
-```
+### **Core Functionality:**
+- **🔍 Real-time Monitoring** - Helius Parse API integration
+- **⚡ Auto Trading** - Sells 25% when buy orders > 0.2 SOL detected
+- **📊 Live Dashboard** - Modern web interface with transaction feed
+- **🔄 Token Management** - Change monitored token via web interface
+- **📱 Mobile Friendly** - Responsive design
 
-4. Configure your `.env` file with:
-   - Your Solana RPC URL (free public endpoints work great!)
-   - Your wallet private key (base58 encoded)
-   - Target token address
-   - Trading parameters
+### **Technical:**
+- **Node.js Backend** - Express server with Socket.IO
+- **Helius Integration** - Professional Solana RPC with parsing
+- **Modern UI** - Dark theme with glassmorphism design
+- **Real-time Updates** - WebSocket communication
+- **Production Ready** - Deployed on Railway
 
-## Quick Deploy
+## 🔧 **Configuration**
 
-Use the deployment script:
-
-```bash
-./deploy.sh
-```
-
-Or see `DEPLOYMENT.md` for detailed deployment options (VPS, Railway, Render, etc.)
-
-## Configuration
-
-Edit the `.env` file:
-
+Create `.env` file:
 ```env
-# Solana RPC endpoint (free public endpoints work perfectly!)
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-SOLANA_WSS_URL=wss://api.mainnet-beta.solana.com
-
-# Your wallet private key (base58 encoded)
 WALLET_PRIVATE_KEY=your_private_key_here
-
-# Token to monitor (pump.fun token address)
-TARGET_TOKEN_ADDRESS=
-
-# Trading parameters
+TARGET_TOKEN_ADDRESS=8NfK7b9u1RvMpHJnAnZki4mNQwjhvzrVZs7bRQatpump
 BUY_THRESHOLD_SOL=0.2
 SELL_PERCENTAGE=25
-
-# Pump.fun program ID
-PUMP_PROGRAM_ID=6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P
 ```
 
-### Configuration Parameters
+## 📊 **Dashboard Features**
 
-- `BUY_THRESHOLD_SOL`: Minimum SOL amount in a buy order to trigger a sell (default: 0.2)
-- `SELL_PERCENTAGE`: Percentage of your token holdings to sell when triggered (default: 25)
-- `TARGET_TOKEN_ADDRESS`: The mint address of the token you want to monitor
+### **Live Indicators:**
+- 🟢 **Connection Status** - Shows if bot is connected
+- 🟢 **Live Monitoring** - Pulsing indicator when actively monitoring
+- ⏰ **Last Updated** - Timestamp of last data update
+- 📈 **Real-time Stats** - Transaction counts and bot uptime
 
-## Usage
+### **Transaction Display:**
+- **🟢 BUY Orders** - Green with SOL amounts
+- **🔴 SELL Orders** - Red with SOL amounts
+- **⚡ PUMP Activity** - Yellow for pump.fun transactions
+- **Real Signatures** - Actual transaction hashes
+- **Live Timestamps** - When each transaction occurred
 
-Start the bot:
+## 🎊 **Current Status**
 
-```bash
-npm start
-```
+✅ **Bot is Live and Monitoring**
+✅ **Railway Deployment Active**
+✅ **Helius Parse API Integration**
+✅ **Modern Web Interface**
+✅ **Real-time Transaction Feed**
 
-For development with auto-reload:
+## 🚦 **How to Know It's Working**
 
-```bash
-npm run dev
-```
+### **Visual Indicators:**
+1. **🟢 Green Dot** - Bot is connected and monitoring
+2. **🟢 Live Monitoring** - Shows when actively checking transactions
+3. **⏰ Last Updated** - Updates every few seconds
+4. **Transaction Feed** - Shows real pump.fun transactions
+5. **Stats Updates** - Numbers change as activity happens
 
-Stop the bot:
-- Press `Ctrl+C` for graceful shutdown
+### **Expected Activity:**
+- **Every 10 seconds** - Bot checks for new transactions
+- **Real transactions** - Shows actual buy/sell/pump activity
+- **Live updates** - Interface updates without refresh
+- **Heartbeat** - Regular status updates show bot is alive
 
-## Important Notes
+## 🔍 **Monitoring Your Token**
 
-### ⚠️ Pump.fun Integration
+The bot monitors: `8NfK7b9u1RvMpHJnAnZki4mNQwjhvzrVZs7bRQatpump`
 
-The sell execution logic in `src/services/tradeExecutor.js` contains a **placeholder implementation** for pump.fun swaps. You need to:
+When it detects buy orders > 0.2 SOL, it will:
+1. **Log the detection** in terminal
+2. **Update dashboard** with buy order count
+3. **Execute sell** of 25% of your token balance
+4. **Show transaction** in the activity feed
 
-1. Obtain the correct pump.fun program instruction format
-2. Update the `createPumpFunSellInstruction` method with actual instruction data
-3. Ensure correct account derivation for bonding curves
-
-Refer to pump.fun's documentation or use their SDK for the correct implementation.
-
-### 🔐 Security
-
-- **NEVER commit your `.env` file or expose your private key**
-- Store your private key securely
-- Consider using a dedicated wallet for bot trading
-- Test on devnet before using real funds
-
-### 📊 Monitoring Strategy
-
-The bot uses **THREE** strategies to catch transactions quickly (even with free RPCs):
-
-1. **Program Log Subscriptions** - Monitors pump.fun program activity in real-time
-2. **Account Change Monitoring** - Watches the bonding curve account for updates  
-3. **Periodic Polling** - Checks recent transactions every 2 seconds
-
-This multi-layered approach works great with FREE public RPC endpoints!
-
-**Optional:** For even faster detection, you can use premium RPC providers like Helius or QuickNode, but it's not required.
-
-### 💰 Transaction Fees
-
-- The bot uses priority fees for faster transaction processing
-- Adjust compute budget in `tradeExecutor.js` if needed
-- Keep sufficient SOL in your wallet for transaction fees
-
-## Project Structure
-
-```
-botat1/
-├── src/
-│   ├── services/
-│   │   ├── mempoolMonitorFree.js  # FREE RPC-compatible monitor
-│   │   ├── tokenTracker.js        # Tracks token balance
-│   │   └── tradeExecutor.js       # Executes sell orders
-│   ├── utils/
-│   │   └── logger.js              # Logging utility
-│   ├── config.js                  # Configuration management
-│   ├── bot.js                     # Main bot orchestrator
-│   └── index.js                   # Entry point
-├── ecosystem.config.js            # PM2 configuration
-├── deploy.sh                      # Deployment script
-├── DEPLOYMENT.md                  # Detailed deployment guide
-├── .env                           # Configuration (create from env.example)
-├── .gitignore
-├── package.json
-└── README.md
-```
-
-## Troubleshooting
-
-### Bot doesn't detect transactions
-- Verify your RPC endpoint supports websocket subscriptions
-- Check that the target token address is correct
-- Ensure transactions are actually happening for the token
-- The bot uses confirmed transactions, so there's a ~1-2 second delay (this is normal)
-
-### Sell transactions fail
-- Verify you have sufficient token balance
-- Check you have enough SOL for transaction fees
-- Confirm the pump.fun instruction implementation is correct
-
-### Connection issues
-- Try a different RPC endpoint
-- Check your internet connection
-- Verify websocket support on your RPC
-
-## Development
-
-To modify the bot behavior:
-
-1. **Adjust detection logic**: Edit `src/services/mempoolMonitor.js`
-2. **Change sell strategy**: Modify `src/bot.js` `handleBuyDetected` method
-3. **Update trade execution**: Edit `src/services/tradeExecutor.js`
-
-## Disclaimer
-
-This bot is provided as-is for educational purposes. Trading cryptocurrencies involves significant risk. Always:
-
-- Test thoroughly on devnet first
-- Start with small amounts
-- Monitor the bot's performance
-- Understand the risks involved
-- Never invest more than you can afford to lose
-
-The authors are not responsible for any financial losses incurred while using this bot.
-
-## License
-
-MIT
-
+**Visit the dashboard to see live activity!** 🌐

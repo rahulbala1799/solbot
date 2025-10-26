@@ -322,8 +322,8 @@
             totalTransactions.textContent = transactionCount;
             updateLastUpdated();
 
-            // Only add if it's a real transaction (not monitoring status)
-            if (data.transactionType && data.transactionType !== 'monitor') {
+            // Show all transactions except explicit monitoring messages
+            if (data.transactionType !== 'monitor') {
                 addTransaction(data);
             }
         });
