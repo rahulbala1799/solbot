@@ -132,6 +132,19 @@ export class MempoolMonitorFree {
       if (!isWorking) {
         Logger.warn('RPC connection failed, switching...');
         this.connection = this.rpcManager.getConnection();
+        
+        // If still failing after switch, emit a status update
+        if (this.webServer) {
+          this.webServer.emitTransaction({
+            signature: `rpc_fail_${Date.now()}`,
+            type: 'error',
+            timestamp: new Date().toISOString(),
+            accounts: 0,
+            solAmount: 0,
+            transactionType: 'error',
+            message: `⚠️ RPC connection issues - trying different endpoints...`
+          });
+        }
         return; // Skip this cycle
       }
       

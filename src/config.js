@@ -4,15 +4,11 @@ import { PublicKey } from '@solana/web3.js';
 dotenv.config();
 
 export const config = {
-  // RPC Configuration - Better free trial endpoints
+  // RPC Configuration - Simplified reliable endpoints
   rpcEndpoints: [
-    'https://rpc.ankr.com/solana',
-    'https://solana-mainnet.g.alchemy.com/v2/demo',
     'https://api.mainnet-beta.solana.com',
-    'https://solana-api.projectserum.com',
-    'https://rpc.helius.xyz/?api-key=demo',
-    'https://solana-mainnet.phantom.app',
-    'https://api.devnet.solana.com'
+    'https://rpc.ankr.com/solana',
+    'https://solana-mainnet.g.alchemy.com/v2/demo'
   ],
   wssEndpoints: [
     'wss://rpc.ankr.com/solana',

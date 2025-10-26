@@ -34,11 +34,13 @@ export class RPCManager {
   async testConnection() {
     try {
       const connection = this.getConnection();
+      Logger.log(`Testing RPC: ${this.rpcEndpoints[this.currentRpcIndex]}`);
       const slot = await connection.getSlot();
       Logger.log(`RPC working: ${this.rpcEndpoints[this.currentRpcIndex]} (slot: ${slot})`);
       return true;
     } catch (error) {
       Logger.warn(`RPC test failed: ${this.rpcEndpoints[this.currentRpcIndex]} - ${error.message}`);
+      Logger.warn(`Error details: ${error.stack}`);
       return false;
     }
   }
