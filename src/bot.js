@@ -93,13 +93,27 @@ export class SolanaBot {
       });
 
       // Re-initialize mempool monitor with web server reference
-      this.mempoolMonitor = new MempoolMonitorFree(
-        config.rpcUrl,
-        config.wssUrl,
-        config.targetTokenAddress,
-        config.pumpProgramId,
-        this.webServer
-      );
+      if (config.targetTokenAddress) {
+        this.mempoolMonitor = new MempoolMonitorFree(
+          config.rpcUrl,
+          config.wssUrl,
+          config.targetTokenAddress,
+          config.pumpProgramId,
+          this.webServer
+        );
+      }
+
+      // Listen for token change requests from web interface
+      this.webServer.io.on('connection', (socket) => {
+        socket.on('tokenChange', async (data) => {
+          try {
+            Logger.log(`Changing token to: ${data.tokenAddress}`);
+            await this.changeToken(data.tokenAddress);
+          } catch (error) {
+            Logger.error('Error changing token', error);
+          }
+        });
+      });
 
       Logger.success('Bot initialized successfully!');
       return true;
@@ -131,12 +145,13 @@ export class SolanaBot {
       Logger.log(`Watching for buy orders > ${this.buyThreshold} SOL`);
       Logger.log(`Will sell ${this.sellPercentage}% on trigger`);
 
-        // Update web interface
-        this.webServer.emitBotStatus('running', {
-          message: 'Bot is monitoring for transactions',
-          buyThreshold: this.buyThreshold,
-          sellPercentage: this.sellPercentage
-        });
+      // Update web interface
+      this.webServer.emitBotStatus('running', {
+        message: 'Bot is monitoring for transactions',
+        buyThreshold: this.buyThreshold,
+        sellPercentage: this.sellPercentage,
+        targetToken: this.mempoolMonitor ? this.mempoolMonitor.targetTokenAddress.toString() : null
+      });
     } catch (error) {
       Logger.error('Failed to start bot', error);
       this.isRunning = false;
@@ -226,9 +241,11 @@ export class SolanaBot {
       // Update web interface
       this.webServer.emitBotStatus('running', {
         message: `Now monitoring token: ${newTokenAddress.substring(0, 8)}...`,
-        targetToken: newTokenAddress
+        targetToken: newTokenAddress,
+        buyThreshold: this.buyThreshold,
+        sellPercentage: this.sellPercentage
       });
-      
+
       Logger.success(`Token changed to: ${newTokenAddress}`);
     } catch (error) {
       Logger.error('Error changing token', error);

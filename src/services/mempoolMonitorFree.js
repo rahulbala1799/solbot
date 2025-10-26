@@ -127,9 +127,15 @@ export class MempoolMonitorFree {
    */
   async checkRecentTransactions(onBuyDetected) {
     try {
+      // Check if target token is set
+      if (!this.targetTokenAddress) {
+        Logger.log('No target token set - waiting for token configuration');
+        return;
+      }
+
       // Use Helius Parse API for better transaction parsing
       const parseApiUrl = 'https://api.helius.xyz/v0/transactions/?api-key=8fa5a141-a272-488e-8dba-edb177602cf9';
-      
+
       // Get bonding curve address
       const bondingCurve = await this.deriveBondingCurveAddress(this.targetTokenAddress);
       
@@ -231,8 +237,8 @@ export class MempoolMonitorFree {
               type: transactionInfo.type || 'pump',
               timestamp: new Date().toISOString(),
               accounts: parsedTx.accountData?.length || parsedTx.tokenTransfers?.length || 0,
-              solAmount: transactionInfo.solAmount,
-              tokenAmount: transactionInfo.tokenAmount,
+              solAmount: transactionInfo.solAmount || 0,
+              tokenAmount: transactionInfo.tokenAmount || 0,
               transactionType: transactionInfo.transactionType || 'pump',
               message: transactionInfo.message || `⚡ Transaction: ${signature.substring(0, 8)}...`
             });
@@ -264,7 +270,7 @@ export class MempoolMonitorFree {
               solAmount: 0,
               tokenAmount: 0,
               transactionType: 'pump',
-              message: `⚡ Transaction: ${signature.substring(0, 8)}... (parsed)`
+              message: `⚡ Transaction: ${signature.substring(0, 8)}... (detected)`
             });
           }
 

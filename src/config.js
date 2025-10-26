@@ -21,8 +21,8 @@ export const config = {
   // Wallet Configuration
   walletPrivateKey: process.env.WALLET_PRIVATE_KEY,
   
-  // Token Configuration
-  targetTokenAddress: process.env.TARGET_TOKEN_ADDRESS,
+      // Token Configuration - Can be set via web interface
+      targetTokenAddress: process.env.TARGET_TOKEN_ADDRESS || null,
   
   // Trading Parameters
   buyThresholdSol: parseFloat(process.env.BUY_THRESHOLD_SOL || '0.2'),
@@ -39,9 +39,10 @@ export const config = {
       errors.push('WALLET_PRIVATE_KEY is required');
     }
     
-    if (!this.targetTokenAddress) {
-      errors.push('TARGET_TOKEN_ADDRESS is required');
-    }
+        if (!this.targetTokenAddress) {
+          // Target token can be set via web interface, so not required at startup
+          console.log('No target token set - can be configured via web interface');
+        }
     
     if (this.sellPercentage <= 0 || this.sellPercentage > 100) {
       errors.push('SELL_PERCENTAGE must be between 0 and 100');

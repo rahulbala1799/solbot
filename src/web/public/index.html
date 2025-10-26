@@ -255,15 +255,67 @@
             </div>
         </div>
 
+        <!-- Token Configuration -->
+        <div class="section">
+            <h3 class="section-title">🎯 Token Configuration</h3>
+            <div style="background: rgba(255, 255, 255, 0.03); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 16px;">
+                    <label style="font-weight: 500; color: #f1f5f9; min-width: 120px;">Token Address:</label>
+                    <input
+                        type="text"
+                        id="tokenInput"
+                        placeholder="Enter Solana token address..."
+                        style="flex: 1; padding: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #f1f5f9; font-family: monospace;"
+                        value=""
+                    />
+                    <button
+                        id="setTokenBtn"
+                        style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; transition: background 0.2s;"
+                        onmouseover="this.style.background='#5a6fd8'"
+                        onmouseout="this.style.background='#667eea'"
+                    >
+                        Set Token
+                    </button>
+                </div>
+                <div style="font-size: 0.8rem; color: #94a3b8;">
+                    Current: <span id="currentToken">Not set</span> |
+                    Enter any Solana token address to monitor all transactions
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions Table -->
         <div class="section">
             <h3 class="section-title">
-                ⚡ Latest Transactions
+                📊 Live Transactions
                 <span id="liveStatus" style="font-size: 0.8rem; color: #10b981; font-weight: 400;">
-                    🔴 Monitoring paused
+                    🔴 Ready
                 </span>
             </h3>
-            <div class="transaction-list" id="transactionList">
-                <div class="no-transactions">⏳ Monitoring for live transactions...</div>
+
+            <div style="overflow-x: auto; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: rgba(255, 255, 255, 0.05);">
+                            <th style="padding: 16px; text-align: left; color: #94a3b8; font-weight: 500; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">Time</th>
+                            <th style="padding: 16px; text-align: left; color: #94a3b8; font-weight: 500; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">Type</th>
+                            <th style="padding: 16px; text-align: left; color: #94a3b8; font-weight: 500; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">SOL Amount</th>
+                            <th style="padding: 16px; text-align: left; color: #94a3b8; font-weight: 500; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">Signature</th>
+                            <th style="padding: 16px; text-align: left; color: #94a3b8; font-weight: 500; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">Accounts</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionTable">
+                        <tr>
+                            <td colspan="5" style="padding: 40px; text-align: center; color: #94a3b8; font-style: italic;">
+                                ⏳ Enter a token address above to start monitoring...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="margin-top: 16px; text-align: center;">
+                <span style="font-size: 0.8rem; color: #64748b;">Showing last 50 transactions • Updates every 10 seconds</span>
             </div>
         </div>
     </div>
@@ -275,9 +327,12 @@
         const buyOrders = document.getElementById('buyOrders');
         const sellOrders = document.getElementById('sellOrders');
         const uptime = document.getElementById('uptime');
-        const transactionList = document.getElementById('transactionList');
         const lastUpdated = document.getElementById('lastUpdated');
         const liveStatus = document.getElementById('liveStatus');
+        const currentToken = document.getElementById('currentToken');
+        const tokenInput = document.getElementById('tokenInput');
+        const setTokenBtn = document.getElementById('setTokenBtn');
+        const transactionTable = document.getElementById('transactionTable');
 
         let transactionCount = 0;
         const maxTransactions = 10; // Only show last 10 transactions
@@ -306,6 +361,10 @@
         // Bot status updates
         socket.on('bot-status', (data) => {
             console.log('Bot status:', data);
+            if (data.targetToken) {
+                currentToken.textContent = data.targetToken.substring(0, 8) + '...';
+                tokenInput.value = data.targetToken;
+            }
             updateLiveStatus('🟢 Bot Active');
         });
 
@@ -315,17 +374,15 @@
             liveStatus.textContent = '🟢 Live Monitoring';
         });
 
-        // Transaction updates
+        // Transaction updates - show ALL transactions
         socket.on('transaction', (data) => {
             console.log('Received transaction:', data);
             transactionCount++;
             totalTransactions.textContent = transactionCount;
             updateLastUpdated();
 
-            // Show all transactions except explicit monitoring messages
-            if (data.transactionType !== 'monitor') {
-                addTransaction(data);
-            }
+            // Show all transactions
+            addTransactionToTable(data);
         });
 
         socket.on('buy-detected', (data) => {
@@ -370,45 +427,106 @@
             lastUpdateTime = now;
         }
 
-        function addTransaction(tx) {
-            // Only add real transactions, not monitoring status
-            if (!tx.transactionType || tx.transactionType === 'monitor') {
+        // Set token functionality
+        setTokenBtn.addEventListener('click', () => {
+            const tokenAddress = tokenInput.value.trim();
+            if (!tokenAddress) {
+                alert('Please enter a token address');
                 return;
             }
 
-            // Remove "no transactions" message if it exists
-            const noTx = transactionList.querySelector('.no-transactions');
-            if (noTx) {
-                noTx.remove();
+            // Validate token address (basic check)
+            if (tokenAddress.length < 32) {
+                alert('Invalid token address - should be at least 32 characters');
+                return;
             }
 
-            const transactionDiv = document.createElement('div');
-            transactionDiv.className = `transaction-item transaction-${tx.transactionType || 'transaction'}`;
+            // Send token change request
+            fetch('/api/change-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ tokenAddress: tokenAddress })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentToken.textContent = tokenAddress.substring(0, 8) + '...';
+                    // Clear table and show waiting message
+                    transactionTable.innerHTML = `
+                        <tr>
+                            <td colspan="5" style="padding: 40px; text-align: center; color: #10b981; font-style: italic;">
+                                🔄 Monitoring token: ${tokenAddress.substring(0, 8)}...
+                            </td>
+                        </tr>
+                    `;
+                    alert('Token updated successfully!');
+                } else {
+                    alert('Failed to update token: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error changing token:', error);
+                alert('Error changing token: ' + error.message);
+            });
+        });
+
+        // Allow Enter key to set token
+        tokenInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                setTokenBtn.click();
+            }
+        });
+
+        function addTransactionToTable(tx) {
+            // Remove initial message if it exists
+            const initialRow = transactionTable.querySelector('tr td[colspan="5"]');
+            if (initialRow && initialRow.textContent.includes('Enter a token address')) {
+                transactionTable.innerHTML = '';
+            }
+
+            // Create table row
+            const row = document.createElement('tr');
+            row.style.cssText = 'border-bottom: 1px solid rgba(255, 255, 255, 0.05); transition: background 0.2s;';
+
+            // Add hover effect
+            row.addEventListener('mouseenter', () => {
+                row.style.background = 'rgba(255, 255, 255, 0.03)';
+            });
+            row.addEventListener('mouseleave', () => {
+                row.style.background = 'transparent';
+            });
 
             const time = new Date(tx.timestamp).toLocaleTimeString();
-            const solAmount = tx.solAmount ? `${tx.solAmount.toFixed(4)} SOL` : '';
-            const accounts = tx.accounts ? `${tx.accounts} accounts` : '';
+            const solAmount = tx.solAmount > 0 ? `${tx.solAmount.toFixed(6)}` : '-';
+            const accounts = tx.accounts || 0;
+            const shortSig = tx.signature ? tx.signature.substring(0, 16) + '...' : 'N/A';
 
-            transactionDiv.innerHTML = `
-                <div class="transaction-header">
-                    <span class="transaction-type">${getTransactionEmoji(tx.transactionType)} ${tx.transactionType?.toUpperCase()}</span>
-                    <span class="transaction-time">${time}</span>
-                </div>
-                <div style="color: #f1f5f9; font-weight: 500; margin-bottom: 8px;">
-                    ${tx.message || 'Transaction processed'}
-                    ${solAmount ? `<span style="color: #fbbf24; font-weight: 600; margin-left: 8px;">${solAmount}</span>` : ''}
-                </div>
-                ${tx.signature ? `<div class="transaction-signature">${tx.signature.substring(0, 16)}...</div>` : ''}
-                ${accounts ? `<div style="color: #94a3b8; font-size: 0.8rem; margin-top: 4px;">${accounts}</div>` : ''}
+            row.innerHTML = `
+                <td style="padding: 12px 16px; color: #e2e8f0; font-size: 0.9rem;">${time}</td>
+                <td style="padding: 12px 16px;">
+                    <span style="display: inline-flex; align-items: center; gap: 4px; font-weight: 500; font-size: 0.9rem;">
+                        ${getTransactionEmoji(tx.transactionType)}
+                        ${tx.transactionType?.toUpperCase() || 'UNKNOWN'}
+                    </span>
+                </td>
+                <td style="padding: 12px 16px; color: #fbbf24; font-weight: 500; font-size: 0.9rem; font-family: monospace;">${solAmount}</td>
+                <td style="padding: 12px 16px;">
+                    <span style="font-family: monospace; font-size: 0.8rem; color: #64748b; background: rgba(255, 255, 255, 0.05); padding: 4px 8px; border-radius: 4px;">
+                        ${shortSig}
+                    </span>
+                </td>
+                <td style="padding: 12px 16px; color: #94a3b8; font-size: 0.9rem;">${accounts}</td>
             `;
 
-            // Add to top of list
-            transactionList.insertBefore(transactionDiv, transactionList.firstChild);
+            // Add to top of table
+            transactionTable.insertBefore(row, transactionTable.firstChild);
 
-            // Limit number of transactions
-            const transactions = transactionList.querySelectorAll('.transaction-item');
-            if (transactions.length > maxTransactions) {
-                transactions[transactions.length - 1].remove();
+            // Limit to 50 transactions
+            const rows = transactionTable.querySelectorAll('tr');
+            if (rows.length > 50) {
+                rows[rows.length - 1].remove();
             }
         }
 
