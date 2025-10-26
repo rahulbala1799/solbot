@@ -8,14 +8,18 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
   },
-  "keywords": ["solana", "trading", "bot", "mempool"],
+  "keywords": [
+    "solana",
+    "trading",
+    "bot",
+    "mempool"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@solana/web3.js": "^1.87.6",
     "@solana/spl-token": "^0.3.9",
+    "@solana/web3.js": "^1.87.6",
     "bs58": "^5.0.0",
     "dotenv": "^16.3.1"
   }
 }
-

@@ -47,7 +47,9 @@ export class TokenTracker {
       
       return balance;
     } catch (error) {
-      if (error.message?.includes('could not find account')) {
+      if (error.message?.includes('could not find account') || 
+          error.message?.includes('TokenAccountNotFoundError') ||
+          error.name === 'TokenAccountNotFoundError') {
         Logger.warn('Token account not found - balance is 0');
         return 0;
       }
