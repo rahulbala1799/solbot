@@ -42,6 +42,7 @@ async function main() {
 
     // Keep the process running
     Logger.log('Bot is running. Press Ctrl+C to stop.');
+    Logger.log('Web dashboard available at: http://localhost:3000');
     
     // Periodically log status
     setInterval(() => {

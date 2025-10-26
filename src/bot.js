@@ -2,6 +2,7 @@ import { Connection } from '@solana/web3.js';
 import { MempoolMonitorFree } from './services/mempoolMonitorFree.js';
 import { TokenTracker } from './services/tokenTracker.js';
 import { TradeExecutor, keypairFromPrivateKey } from './services/tradeExecutor.js';
+import { WebServer } from './web/server.js';
 import { Logger } from './utils/logger.js';
 import { config } from './config.js';
 
@@ -11,6 +12,7 @@ export class SolanaBot {
     this.mempoolMonitor = null;
     this.tokenTracker = null;
     this.tradeExecutor = null;
+    this.webServer = null;
     this.wallet = null;
     this.isRunning = false;
     this.buyThreshold = config.buyThresholdSol;
@@ -60,9 +62,22 @@ export class SolanaBot {
         config.pumpProgramId
       );
 
+      // Initialize web server
+      this.webServer = new WebServer(process.env.PORT || 3000);
+      this.webServer.start();
+
       // Check initial balance
       const balance = await this.tokenTracker.getBalance();
       Logger.log(`Initial token balance: ${balance}`);
+
+      // Update web interface
+      this.webServer.emitBotStatus('running', {
+        message: 'Bot initialized successfully',
+        wallet: this.wallet.publicKey.toString(),
+        tokenBalance: balance,
+        buyThreshold: this.buyThreshold,
+        sellPercentage: this.sellPercentage
+      });
 
       Logger.success('Bot initialized successfully!');
       return true;
@@ -93,6 +108,13 @@ export class SolanaBot {
       Logger.success('Bot is now running!');
       Logger.log(`Watching for buy orders > ${this.buyThreshold} SOL`);
       Logger.log(`Will sell ${this.sellPercentage}% on trigger`);
+
+      // Update web interface
+      this.webServer.emitBotStatus('running', {
+        message: 'Bot is monitoring for transactions',
+        buyThreshold: this.buyThreshold,
+        sellPercentage: this.sellPercentage
+      });
     } catch (error) {
       Logger.error('Failed to start bot', error);
       this.isRunning = false;
@@ -129,15 +151,18 @@ export class SolanaBot {
 
       if (result) {
         Logger.success('Sell order completed!', result);
+        this.webServer.emitSellExecuted(result);
         
         // Log updated balance
         const newBalance = await this.tokenTracker.getBalance();
         Logger.log(`New token balance: ${newBalance}`);
       } else {
         Logger.error('Sell order failed');
+        this.webServer.emitError(new Error('Sell order failed'));
       }
     } catch (error) {
       Logger.error('Error handling buy detection', error);
+      this.webServer.emitError(error);
     }
   }
 
@@ -157,6 +182,12 @@ export class SolanaBot {
       }
 
       this.isRunning = false;
+      
+      if (this.webServer) {
+        this.webServer.emitBotStatus('stopped', { message: 'Bot stopped' });
+        this.webServer.stop();
+      }
+      
       Logger.success('Bot stopped successfully');
     } catch (error) {
       Logger.error('Error stopping bot', error);
