@@ -44,7 +44,8 @@ export class SolanaBot {
         config.rpcUrl,
         config.wssUrl,
         config.targetTokenAddress,
-        config.pumpProgramId
+        config.pumpProgramId,
+        this.webServer
       );
 
       this.tokenTracker = new TokenTracker(

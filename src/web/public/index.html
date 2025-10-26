@@ -324,7 +324,7 @@
 
         // Transaction updates
         socket.on('transaction', (data) => {
-            addActivity('transaction', `Transaction processed: ${data.signature?.substring(0, 8)}...`, data);
+            addActivity('transaction', data.message || `Transaction processed: ${data.signature?.substring(0, 8)}...`, data);
         });
 
         socket.on('buy-detected', (data) => {
@@ -368,13 +368,30 @@
             activityItem.innerHTML = `
                 <div class="activity-time">${time}</div>
                 <div class="activity-message">${message}</div>
-                <div class="activity-details">${JSON.stringify(data, null, 2)}</div>
+                <div class="activity-details" style="font-size: 0.8rem; color: #888;">
+                    ${data.signature ? `Signature: ${data.signature.substring(0, 16)}...` : ''}
+                    ${data.accounts ? ` | Accounts: ${data.accounts}` : ''}
+                </div>
             `;
 
             // Remove "no activity" message if it exists
             const noActivity = activityFeed.querySelector('.no-activity');
             if (noActivity) {
                 noActivity.remove();
+            }
+
+            // Add a welcome message for first activity
+            if (activityCount === 1) {
+                const welcomeItem = document.createElement('div');
+                welcomeItem.className = 'activity-item';
+                welcomeItem.innerHTML = `
+                    <div class="activity-time">${new Date().toLocaleTimeString()}</div>
+                    <div class="activity-message">🎯 Bot is now monitoring pump.fun transactions!</div>
+                    <div class="activity-details" style="font-size: 0.8rem; color: #888;">
+                        Watching for buy orders > 0.2 SOL on token: 8NfK7b9u1RvMpHJnAnZki4mNQwjhvzrVZs7bRQatpump
+                    </div>
+                `;
+                activityFeed.insertBefore(welcomeItem, activityFeed.firstChild);
             }
 
             // Add new activity to top

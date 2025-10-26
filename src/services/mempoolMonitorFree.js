@@ -7,13 +7,14 @@ import { Logger } from '../utils/logger.js';
  * Works with free public Solana RPC endpoints
  */
 export class MempoolMonitorFree {
-  constructor(rpcUrl, wssUrl, targetTokenAddress, pumpProgramId) {
+  constructor(rpcUrl, wssUrl, targetTokenAddress, pumpProgramId, webServer = null) {
     this.connection = new Connection(rpcUrl, {
       commitment: 'confirmed', // Use 'confirmed' for free RPCs
       wsEndpoint: wssUrl
     });
     this.targetTokenAddress = new PublicKey(targetTokenAddress);
     this.pumpProgramId = pumpProgramId;
+    this.webServer = webServer;
     this.subscriptionId = null;
     this.accountSubscriptionId = null;
     this.isRunning = false;
@@ -120,6 +121,17 @@ export class MempoolMonitorFree {
       
       if (!involvedAccounts.includes(this.targetTokenAddress.toString())) {
         return;
+      }
+
+      // Emit transaction to web interface for live monitoring
+      if (this.webServer) {
+        this.webServer.emitTransaction({
+          signature: signature,
+          type: 'pump_transaction',
+          timestamp: new Date().toISOString(),
+          accounts: involvedAccounts.length,
+          message: `Processing pump.fun transaction: ${signature.substring(0, 8)}...`
+        });
       }
 
       // Parse for buy orders
