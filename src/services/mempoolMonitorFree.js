@@ -193,6 +193,19 @@ export class MempoolMonitorFree {
 
         this.processedSignatures.add(signature);
 
+        // Emit basic transaction info immediately
+        if (this.webServer) {
+          this.webServer.emitTransaction({
+            signature: signature,
+            type: 'transaction',
+            timestamp: new Date().toISOString(),
+            accounts: 0,
+            solAmount: 0,
+            transactionType: 'transaction',
+            message: `📄 Transaction: ${signature.substring(0, 8)}... (Processing...)`
+          });
+        }
+
         // Fetch and parse transaction
         try {
           const tx = await this.connection.getTransaction(signature, {
@@ -201,7 +214,7 @@ export class MempoolMonitorFree {
           });
 
           if (tx) {
-            // Emit transaction to web interface
+            // Emit detailed transaction to web interface
             if (this.webServer) {
               const transactionInfo = this.parseTransactionDetails(tx);
               this.webServer.emitTransaction({
@@ -250,7 +263,7 @@ export class MempoolMonitorFree {
    * Start periodic polling (backup strategy)
    */
   startPolling(onBuyDetected) {
-    // Poll every 5 seconds to avoid rate limits
+    // Poll every 10 seconds to avoid rate limits
     this.pollingInterval = setInterval(async () => {
       if (!this.isRunning) {
         clearInterval(this.pollingInterval);
@@ -258,9 +271,9 @@ export class MempoolMonitorFree {
       }
       
       await this.checkRecentTransactions(onBuyDetected);
-    }, 5000); // 5 second intervals to avoid rate limiting
+    }, 10000); // 10 second intervals to avoid rate limiting
 
-    Logger.success('Polling monitor started (checks every 5s)');
+    Logger.success('Polling monitor started (checks every 10s)');
   }
 
   /**
