@@ -8,7 +8,7 @@ A real-time Solana mempool monitoring bot that automatically sells tokens when l
 Visit: https://solana-bot-production-a6d2.up.railway.app
 - ✅ Live monitoring dashboard
 - ✅ Real-time transaction feed
-- ✅ Professional UI
+- ✅ Professional UI with live indicators
 
 ### **Option 2: CLI Bot (Terminal)**
 ```bash
@@ -64,6 +64,29 @@ SELL_PERCENTAGE=25
 - **⚡ PUMP Activity** - Yellow for pump.fun transactions
 - **Real Signatures** - Actual transaction hashes
 - **Live Timestamps** - When each transaction occurred
+
+## 🔍 **Troubleshooting**
+
+### **No Transactions Showing:**
+1. **Check Connection** - Green dot should be pulsing
+2. **Verify Token** - Make sure the token has recent activity
+3. **Check Logs** - Railway logs will show if transactions are being found
+4. **Wait for Activity** - Pump.fun might be quiet, wait for trades
+
+### **Expected Activity:**
+- **Every 10 seconds** - Bot checks for new transactions
+- **Real-time updates** - Dashboard updates automatically
+- **Transaction types** - Should see buy/sell/pump transactions
+- **SOL amounts** - Real transaction values from Helius API
+
+### **If Still Not Working:**
+```bash
+# Check Railway logs
+railway logs
+
+# Or run locally to see detailed logs
+npm run cli
+```
 
 ## 🎊 **Current Status**
 
