@@ -48,20 +48,26 @@ export class SolanaBot {
         this.webServer
       );
 
-      this.tokenTracker = new TokenTracker(
-        this.connection,
-        this.wallet.publicKey,
-        config.targetTokenAddress
-      );
+        // Initialize token tracker if target token is set
+        if (config.targetTokenAddress) {
+          this.tokenTracker = new TokenTracker(
+            this.connection,
+            this.wallet.publicKey,
+            config.targetTokenAddress
+          );
 
-      await this.tokenTracker.initialize();
+          await this.tokenTracker.initialize();
+        }
 
-      this.tradeExecutor = new TradeExecutor(
-        this.connection,
-        this.wallet,
-        config.targetTokenAddress,
-        config.pumpProgramId
-      );
+      // Initialize trade executor if target token is set
+      if (config.targetTokenAddress) {
+        this.tradeExecutor = new TradeExecutor(
+          this.connection,
+          this.wallet,
+          config.targetTokenAddress,
+          config.pumpProgramId
+        );
+      }
 
       // Initialize web server
       this.webServer = new WebServer(process.env.PORT || 3000);
@@ -79,27 +85,35 @@ export class SolanaBot {
         });
       });
 
-      // Check initial balance
-      const balance = await this.tokenTracker.getBalance();
-      Logger.log(`Initial token balance: ${balance}`);
+      // Check initial balance if token is set
+      let balance = 0;
+      if (this.tokenTracker) {
+        balance = await this.tokenTracker.getBalance();
+        Logger.log(`Initial token balance: ${balance}`);
+      }
 
       // Update web interface
       this.webServer.emitBotStatus('running', {
-        message: 'Bot initialized successfully',
+        message: config.targetTokenAddress
+          ? 'Bot initialized successfully'
+          : 'Bot initialized - enter a token address to start monitoring',
         wallet: this.wallet.publicKey.toString(),
         tokenBalance: balance,
         buyThreshold: this.buyThreshold,
-        sellPercentage: this.sellPercentage
+        sellPercentage: this.sellPercentage,
+        targetToken: config.targetTokenAddress
       });
 
       // Re-initialize mempool monitor with web server reference
-      this.mempoolMonitor = new MempoolMonitorFree(
-        config.rpcUrl,
-        config.wssUrl,
-        config.targetTokenAddress,
-        config.pumpProgramId,
-        this.webServer
-      );
+      if (config.targetTokenAddress) {
+        this.mempoolMonitor = new MempoolMonitorFree(
+          config.rpcUrl,
+          config.wssUrl,
+          config.targetTokenAddress,
+          config.pumpProgramId,
+          this.webServer
+        );
+      }
 
       // Listen for token change requests from web interface
       this.webServer.io.on('connection', (socket) => {
@@ -134,10 +148,14 @@ export class SolanaBot {
       Logger.log('Starting bot...');
       this.isRunning = true;
 
-      // Start monitoring mempool
-      await this.mempoolMonitor.start(async (buyInfo) => {
-        await this.handleBuyDetected(buyInfo);
-      });
+      // Start monitoring mempool if target token is set
+      if (this.mempoolMonitor) {
+        await this.mempoolMonitor.start(async (buyInfo) => {
+          await this.handleBuyDetected(buyInfo);
+        });
+      } else {
+        Logger.log('No target token set - bot ready but not monitoring');
+      }
 
       Logger.success('Bot is now running!');
       Logger.log(`Watching for buy orders > ${this.buyThreshold} SOL`);
@@ -145,7 +163,9 @@ export class SolanaBot {
 
       // Update web interface
       this.webServer.emitBotStatus('running', {
-        message: 'Bot is monitoring for transactions',
+        message: config.targetTokenAddress
+          ? 'Bot is monitoring for transactions'
+          : 'Bot is ready - enter a token address to start monitoring',
         buyThreshold: this.buyThreshold,
         sellPercentage: this.sellPercentage,
         targetToken: config.targetTokenAddress
@@ -171,6 +191,12 @@ export class SolanaBot {
       }
 
       Logger.success(`Buy threshold met! ${buyInfo.solAmount} SOL >= ${this.buyThreshold} SOL`);
+
+      // Check if components are available
+      if (!this.tokenTracker || !this.tradeExecutor) {
+        Logger.warn('Token tracker or trade executor not initialized - cannot execute trade');
+        return;
+      }
 
       // Calculate sell amount
       const sellAmount = await this.tokenTracker.calculateSellAmount(this.sellPercentage);

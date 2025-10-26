@@ -43,16 +43,10 @@ async function main() {
     // Keep the process running
     Logger.log('Bot is running. Press Ctrl+C to stop.');
     Logger.log('Web dashboard available at: http://localhost:3000');
-    
-    // Periodically log status
-    setInterval(() => {
-      const status = bot.getStatus();
-      Logger.log('Bot Status:', status);
-    }, 60000); // Every minute
 
   } catch (error) {
-    Logger.error('Fatal error', error);
-    process.exit(1);
+    Logger.error('Bot initialization failed, but web interface will still work', error);
+    Logger.log('You can still set a token address via the web interface to start monitoring');
   }
 }
 
