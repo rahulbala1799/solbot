@@ -29,6 +29,20 @@ export class RPCManager {
   }
 
   /**
+   * Test if current RPC is working
+   */
+  async testConnection() {
+    try {
+      const connection = this.getConnection();
+      await connection.getSlot();
+      return true;
+    } catch (error) {
+      Logger.warn(`RPC test failed: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
    * Check if we should switch RPC due to rate limiting
    */
   shouldSwitchRPC() {

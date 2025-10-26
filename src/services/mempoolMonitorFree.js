@@ -127,6 +127,14 @@ export class MempoolMonitorFree {
    */
   async checkRecentTransactions(onBuyDetected) {
     try {
+      // Test connection first
+      const isWorking = await this.rpcManager.testConnection();
+      if (!isWorking) {
+        Logger.warn('RPC connection failed, switching...');
+        this.connection = this.rpcManager.getConnection();
+        return; // Skip this cycle
+      }
+      
       // Get current connection (may switch if rate limited)
       this.connection = this.rpcManager.getConnection();
       
@@ -142,6 +150,21 @@ export class MempoolMonitorFree {
 
       // Reset rate limit counter on successful request
       this.rpcManager.resetRateLimit();
+      
+      Logger.log(`Found ${signatures.length} recent transactions for token ${this.targetTokenAddress.toString().substring(0, 8)}...`);
+
+      // If no transactions found, emit a sample transaction to show monitoring is working
+      if (signatures.length === 0 && this.webServer) {
+        this.webServer.emitTransaction({
+          signature: `monitor_${Date.now()}`,
+          type: 'monitor',
+          timestamp: new Date().toISOString(),
+          accounts: 0,
+          solAmount: 0,
+          transactionType: 'monitor',
+          message: `🔍 Monitoring ${this.targetTokenAddress.toString().substring(0, 8)}... (No recent activity)`
+        });
+      }
 
       // Process each signature
       for (const sigInfo of signatures) {
