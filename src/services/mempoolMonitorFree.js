@@ -166,6 +166,11 @@ export class MempoolMonitorFree {
       const parsedTransactions = await parseResponse.json();
       
       Logger.log(`Parsed ${parsedTransactions.length} transactions using Helius Parse API`);
+      
+      // Debug: Log the structure of the first transaction
+      if (parsedTransactions.length > 0) {
+        Logger.log('Sample transaction structure:', JSON.stringify(parsedTransactions[0], null, 2));
+      }
 
       // Emit monitoring status
       if (this.webServer) {
@@ -503,26 +508,40 @@ export class MempoolMonitorFree {
         signature = 'unknown';
       }
       
-      const events = parsedTx.events || [];
-      const nativeTransfers = parsedTx.nativeTransfers || [];
-      const tokenTransfers = parsedTx.tokenTransfers || [];
+      // Safely handle events - might be array, object, or undefined
+      let events = [];
+      if (Array.isArray(parsedTx.events)) {
+        events = parsedTx.events;
+      } else if (parsedTx.events && typeof parsedTx.events === 'object') {
+        events = Object.values(parsedTx.events);
+      }
+      
+      const nativeTransfers = Array.isArray(parsedTx.nativeTransfers) ? parsedTx.nativeTransfers : [];
+      const tokenTransfers = Array.isArray(parsedTx.tokenTransfers) ? parsedTx.tokenTransfers : [];
       
       // Calculate SOL amount from native transfers
       let solAmount = 0;
       for (const transfer of nativeTransfers) {
-        solAmount += transfer.amount / 1e9; // Convert lamports to SOL
+        if (transfer && typeof transfer.amount === 'number') {
+          solAmount += transfer.amount / 1e9; // Convert lamports to SOL
+        }
       }
       
       // Determine transaction type
-      let transactionType = 'unknown';
+      let transactionType = 'transaction';
       let message = `Transaction: ${signature.substring(0, 8)}...`;
       
       // Check for pump.fun specific events
-      const pumpEvents = events.filter(event => 
-        event.type === 'SWAP' || 
-        event.type === 'TOKEN_MINT' ||
-        event.type === 'TOKEN_BURN'
-      );
+      let pumpEvents = [];
+      if (events.length > 0) {
+        pumpEvents = events.filter(event => 
+          event && event.type && (
+            event.type === 'SWAP' || 
+            event.type === 'TOKEN_MINT' ||
+            event.type === 'TOKEN_BURN'
+          )
+        );
+      }
       
       if (pumpEvents.length > 0) {
         if (solAmount > 0) {
@@ -555,7 +574,7 @@ export class MempoolMonitorFree {
         solAmount: 0,
         tokenAmount: 0,
         transactionType: 'unknown',
-        message: `Transaction: ${signature?.substring(0, 8) || 'unknown'}...`
+        message: `Transaction: unknown...`
       };
     }
   }
