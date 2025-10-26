@@ -4,11 +4,11 @@ import { PublicKey } from '@solana/web3.js';
 dotenv.config();
 
 export const config = {
-  // RPC Configuration - Simplified reliable endpoints
+  // RPC Configuration - Try different approaches
   rpcEndpoints: [
     'https://api.mainnet-beta.solana.com',
-    'https://rpc.ankr.com/solana',
-    'https://solana-mainnet.g.alchemy.com/v2/demo'
+    'https://api.devnet.solana.com',
+    'https://solana-api.projectserum.com'
   ],
   wssEndpoints: [
     'wss://rpc.ankr.com/solana',

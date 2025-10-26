@@ -133,7 +133,7 @@ export class MempoolMonitorFree {
         Logger.warn('RPC connection failed, switching...');
         this.connection = this.rpcManager.getConnection();
         
-        // If still failing after switch, emit a status update
+        // If still failing after switch, emit a status update and show demo mode
         if (this.webServer) {
           this.webServer.emitTransaction({
             signature: `rpc_fail_${Date.now()}`,
@@ -144,6 +144,9 @@ export class MempoolMonitorFree {
             transactionType: 'error',
             message: `⚠️ RPC connection issues - trying different endpoints...`
           });
+          
+          // Show demo transactions when RPC fails
+          this.showDemoTransactions();
         }
         return; // Skip this cycle
       }
@@ -417,6 +420,53 @@ export class MempoolMonitorFree {
         transactionType: 'unknown',
         message: `Transaction: ${tx.transaction.signatures[0].substring(0, 8)}...`
       };
+    }
+  }
+
+  /**
+   * Show demo transactions when RPC fails
+   */
+  showDemoTransactions() {
+    if (!this.webServer) return;
+    
+    // Only show demo transactions occasionally to avoid spam
+    const now = Date.now();
+    if (!this.lastDemoTime || (now - this.lastDemoTime) > 30000) { // Every 30 seconds
+      this.lastDemoTime = now;
+      
+      const demoTransactions = [
+        {
+          signature: `demo_buy_${Date.now()}`,
+          type: 'buy',
+          timestamp: new Date().toISOString(),
+          accounts: 3,
+          solAmount: 0.25,
+          transactionType: 'buy',
+          message: `🟢 BUY: 0.2500 SOL (Demo)`
+        },
+        {
+          signature: `demo_sell_${Date.now()}`,
+          type: 'sell',
+          timestamp: new Date().toISOString(),
+          accounts: 4,
+          solAmount: 0.15,
+          transactionType: 'sell',
+          message: `🔴 SELL: 0.1500 SOL (Demo)`
+        },
+        {
+          signature: `demo_pump_${Date.now()}`,
+          type: 'pump',
+          timestamp: new Date().toISOString(),
+          accounts: 5,
+          solAmount: 0.50,
+          transactionType: 'pump',
+          message: `⚡ PUMP: 0.5000 SOL (Demo)`
+        }
+      ];
+      
+      // Show one random demo transaction
+      const randomTx = demoTransactions[Math.floor(Math.random() * demoTransactions.length)];
+      this.webServer.emitTransaction(randomTx);
     }
   }
 
