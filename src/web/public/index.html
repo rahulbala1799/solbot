@@ -416,6 +416,31 @@
             .then(response => response.json())
             .then(data => {
                 updateBotStatus({ status: 'running', data: { message: 'Bot is running' } });
+                
+                // Update wallet info
+                walletInfo.innerHTML = `
+                    <div style="font-size: 0.9rem; color: #666;">
+                        <div><strong>Address:</strong> 4kKaEjzpWoPVU8JDsbyZwpjGtLZofbSMTzKikC39gFjW</div>
+                        <div><strong>Network:</strong> Mainnet</div>
+                    </div>
+                `;
+                
+                // Update token balance
+                tokenBalance.innerHTML = `
+                    <div style="font-size: 0.9rem; color: #666;">
+                        <div><strong>Token:</strong> 8NfK7b9u1RvMpHJnAnZki4mNQwjhvzrVZs7bRQatpump</div>
+                        <div><strong>Balance:</strong> 0 tokens</div>
+                    </div>
+                `;
+                
+                // Update monitoring status
+                monitoringStatus.innerHTML = `
+                    <div style="font-size: 0.9rem; color: #666;">
+                        <div><strong>Status:</strong> Active</div>
+                        <div><strong>Threshold:</strong> 0.2 SOL</div>
+                        <div><strong>Sell %:</strong> 25%</div>
+                    </div>
+                `;
             })
             .catch(() => {
                 updateBotStatus({ status: 'offline', data: { message: 'Cannot connect to bot' } });
