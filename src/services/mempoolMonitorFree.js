@@ -197,8 +197,6 @@ export class MempoolMonitorFree {
         });
       }
 
-      const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
-
       if (signatures.length === 0) {
         Logger.log(`No recent transactions for token ${tokenStr}... Token might be new or inactive.`);
         return;
