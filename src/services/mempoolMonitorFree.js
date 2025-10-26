@@ -169,16 +169,16 @@ export class MempoolMonitorFree {
       
       Logger.log(`Found ${signatures.length} recent transactions for token ${this.targetTokenAddress.toString().substring(0, 8)}...`);
 
-      // If no transactions found, emit a sample transaction to show monitoring is working
-      if (signatures.length === 0 && this.webServer) {
+      // Emit monitoring status
+      if (this.webServer) {
         this.webServer.emitTransaction({
           signature: `monitor_${Date.now()}`,
           type: 'monitor',
           timestamp: new Date().toISOString(),
-          accounts: 0,
+          accounts: signatures.length,
           solAmount: 0,
           transactionType: 'monitor',
-          message: `🔍 Monitoring ${this.targetTokenAddress.toString().substring(0, 8)}... (No recent activity)`
+          message: `🔍 Found ${signatures.length} recent transactions for ${this.targetTokenAddress.toString().substring(0, 8)}...`
         });
       }
 
@@ -201,6 +201,21 @@ export class MempoolMonitorFree {
           });
 
           if (tx) {
+            // Emit transaction to web interface
+            if (this.webServer) {
+              const transactionInfo = this.parseTransactionDetails(tx);
+              this.webServer.emitTransaction({
+                signature: signature,
+                type: transactionInfo.type || 'transaction',
+                timestamp: new Date().toISOString(),
+                accounts: tx.transaction.message.getAccountKeys().staticAccountKeys.length,
+                solAmount: transactionInfo.solAmount,
+                tokenAmount: transactionInfo.tokenAmount,
+                transactionType: transactionInfo.transactionType,
+                message: transactionInfo.message || `Transaction: ${signature.substring(0, 8)}...`
+              });
+            }
+            
             const buyInfo = this.parseBuyOrder(tx);
             if (buyInfo) {
               Logger.success('Buy order detected via polling!', buyInfo);
