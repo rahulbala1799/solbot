@@ -637,12 +637,12 @@
                         message: 'Token monitoring updated'
                     });
                 } else {
-                    alert('Failed to update token: ' + data.error);
+                    alert('Failed to update token: ' + (data.error || 'Unknown error'));
                 }
             })
             .catch(error => {
                 console.error('Error changing token:', error);
-                alert('Error changing token');
+                alert('Error changing token: ' + error.message);
             });
         }
     </script>

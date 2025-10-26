@@ -57,7 +57,7 @@ export class WebServer {
       this.io.emit('changeToken', { tokenAddress });
       
       // Add activity log
-      this.addActivity(`Token changed to: ${tokenAddress.substring(0, 8)}...`);
+      this.addActivityLog(`Token changed to: ${tokenAddress.substring(0, 8)}...`);
       
       res.json({ success: true, message: 'Token change request sent' });
     });
@@ -121,6 +121,14 @@ export class WebServer {
     this.io.emit('error', {
       message: error.message,
       timestamp: new Date().toISOString()
+    });
+  }
+
+  addActivityLog(message) {
+    this.io.emit('activityLog', {
+      message: message,
+      timestamp: new Date().toISOString(),
+      type: 'info'
     });
   }
 
