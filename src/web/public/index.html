@@ -67,6 +67,7 @@
             padding: 24px;
             text-align: center;
             transition: all 0.3s ease;
+            position: relative;
         }
 
         .stat-card:hover {
@@ -86,6 +87,30 @@
             font-size: 0.9rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+
+        .live-indicator {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+        }
+
+        .last-updated {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            font-size: 0.7rem;
+            color: #64748b;
         }
 
         .connection-status {
@@ -211,27 +236,34 @@
 
         <div class="stats-grid">
             <div class="stat-card">
+                <div class="live-indicator"></div>
+                <div class="last-updated" id="lastUpdated">Never</div>
                 <div class="stat-number" id="totalTransactions">0</div>
-                <div class="stat-label">Total Transactions</div>
+                <div class="stat-label">Transactions Today</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="buyOrders">0</div>
-                <div class="stat-label">Buy Orders Detected</div>
+                <div class="stat-label">Buy Orders > 0.2 SOL</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="sellOrders">0</div>
-                <div class="stat-label">Sell Orders Executed</div>
+                <div class="stat-label">Auto Sells Executed</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="uptime">0s</div>
-                <div class="stat-label">Uptime</div>
+                <div class="stat-label">Bot Uptime</div>
             </div>
         </div>
 
         <div class="section">
-            <h3 class="section-title">⚡ Latest Transactions</h3>
+            <h3 class="section-title">
+                ⚡ Latest Transactions
+                <span id="liveStatus" style="font-size: 0.8rem; color: #10b981; font-weight: 400;">
+                    🔴 Monitoring paused
+                </span>
+            </h3>
             <div class="transaction-list" id="transactionList">
-                <div class="no-transactions">Waiting for transactions...</div>
+                <div class="no-transactions">⏳ Monitoring for live transactions...</div>
             </div>
         </div>
     </div>
@@ -244,26 +276,43 @@
         const sellOrders = document.getElementById('sellOrders');
         const uptime = document.getElementById('uptime');
         const transactionList = document.getElementById('transactionList');
+        const lastUpdated = document.getElementById('lastUpdated');
+        const liveStatus = document.getElementById('liveStatus');
 
         let transactionCount = 0;
-        const maxTransactions = 20;
+        const maxTransactions = 10; // Only show last 10 transactions
+        let lastUpdateTime = null;
+
+        // Heartbeat to track if bot is alive
+        let heartbeatInterval;
+        let lastHeartbeat = null;
 
         // Connection status
         socket.on('connect', () => {
             connectionStatus.textContent = '🟢 Connected';
             connectionStatus.className = 'connection-status connected';
             console.log('WebSocket connected');
+            startHeartbeat();
         });
 
         socket.on('disconnect', () => {
             connectionStatus.textContent = '🔴 Disconnected';
             connectionStatus.className = 'connection-status disconnected';
             console.log('WebSocket disconnected');
+            stopHeartbeat();
+            liveStatus.textContent = '🔴 Monitoring paused';
         });
 
         // Bot status updates
         socket.on('bot-status', (data) => {
             console.log('Bot status:', data);
+            updateLiveStatus('🟢 Bot Active');
+        });
+
+        // Heartbeat response from server
+        socket.on('heartbeat-response', () => {
+            lastHeartbeat = Date.now();
+            liveStatus.textContent = '🟢 Live Monitoring';
         });
 
         // Transaction updates
@@ -271,20 +320,62 @@
             console.log('Received transaction:', data);
             transactionCount++;
             totalTransactions.textContent = transactionCount;
+            updateLastUpdated();
 
-            // Add to transaction list
-            addTransaction(data);
+            // Only add if it's a real transaction (not monitoring status)
+            if (data.transactionType && data.transactionType !== 'monitor') {
+                addTransaction(data);
+            }
         });
 
         socket.on('buy-detected', (data) => {
             buyOrders.textContent = parseInt(buyOrders.textContent) + 1;
+            updateLastUpdated();
         });
 
         socket.on('sell-executed', (data) => {
             sellOrders.textContent = parseInt(sellOrders.textContent) + 1;
+            updateLastUpdated();
         });
 
+        function startHeartbeat() {
+            heartbeatInterval = setInterval(() => {
+                // Send heartbeat to check if connection is alive
+                socket.emit('heartbeat');
+                updateLastUpdated();
+
+                // If no heartbeat received in 15 seconds, show as paused
+                if (lastHeartbeat && (Date.now() - lastHeartbeat) > 15000) {
+                    liveStatus.textContent = '🔴 Monitoring paused';
+                } else {
+                    liveStatus.textContent = '🟢 Live Monitoring';
+                }
+            }, 5000);
+        }
+
+        function stopHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+            }
+        }
+
+        function updateLiveStatus(status) {
+            liveStatus.textContent = status;
+            lastHeartbeat = Date.now();
+        }
+
+        function updateLastUpdated() {
+            const now = new Date();
+            lastUpdated.textContent = now.toLocaleTimeString();
+            lastUpdateTime = now;
+        }
+
         function addTransaction(tx) {
+            // Only add real transactions, not monitoring status
+            if (!tx.transactionType || tx.transactionType === 'monitor') {
+                return;
+            }
+
             // Remove "no transactions" message if it exists
             const noTx = transactionList.querySelector('.no-transactions');
             if (noTx) {
@@ -292,7 +383,7 @@
             }
 
             const transactionDiv = document.createElement('div');
-            transactionDiv.className = `transaction-item transaction-${tx.transactionType || 'monitor'}`;
+            transactionDiv.className = `transaction-item transaction-${tx.transactionType || 'transaction'}`;
 
             const time = new Date(tx.timestamp).toLocaleTimeString();
             const solAmount = tx.solAmount ? `${tx.solAmount.toFixed(4)} SOL` : '';
@@ -300,12 +391,12 @@
 
             transactionDiv.innerHTML = `
                 <div class="transaction-header">
-                    <span class="transaction-type">${getTransactionEmoji(tx.transactionType)} ${tx.transactionType?.toUpperCase() || 'TRANSACTION'}</span>
+                    <span class="transaction-type">${getTransactionEmoji(tx.transactionType)} ${tx.transactionType?.toUpperCase()}</span>
                     <span class="transaction-time">${time}</span>
                 </div>
                 <div style="color: #f1f5f9; font-weight: 500; margin-bottom: 8px;">
                     ${tx.message || 'Transaction processed'}
-                    ${solAmount ? `<span style="color: #fbbf24; font-weight: 600;">${solAmount}</span>` : ''}
+                    ${solAmount ? `<span style="color: #fbbf24; font-weight: 600; margin-left: 8px;">${solAmount}</span>` : ''}
                 </div>
                 ${tx.signature ? `<div class="transaction-signature">${tx.signature.substring(0, 16)}...</div>` : ''}
                 ${accounts ? `<div style="color: #94a3b8; font-size: 0.8rem; margin-top: 4px;">${accounts}</div>` : ''}

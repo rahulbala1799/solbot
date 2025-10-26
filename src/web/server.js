@@ -71,7 +71,12 @@ export class WebServer {
   setupSocket() {
     this.io.on('connection', (socket) => {
       Logger.log('Web client connected');
-      
+
+      // Handle heartbeat from frontend
+      socket.on('heartbeat', () => {
+        socket.emit('heartbeat-response');
+      });
+
       socket.on('disconnect', () => {
         Logger.log('Web client disconnected');
       });

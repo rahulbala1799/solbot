@@ -180,19 +180,12 @@ export class MempoolMonitorFree {
         });
       }
 
-      // Process parsed transactions
+      // Emit each transaction individually for display
       for (const parsedTx of parsedTransactions) {
         try {
-          // Get signature from Helius response
           const signature = parsedTx.signature;
-          
-          if (!signature) {
-            Logger.warn('Could not find signature in parsed transaction:', parsedTx);
-            continue;
-          }
-          
-          // Skip if already processed
-          if (this.processedSignatures.has(signature)) {
+
+          if (!signature || this.processedSignatures.has(signature)) {
             continue;
           }
 
@@ -200,9 +193,9 @@ export class MempoolMonitorFree {
 
           // Parse transaction using Helius data
           const transactionInfo = this.parseHeliusTransaction(parsedTx);
-          
-          // Emit transaction to web interface
-          if (this.webServer) {
+
+          // Emit transaction to web interface for display
+          if (this.webServer && transactionInfo.transactionType !== 'unknown') {
             this.webServer.emitTransaction({
               signature: signature,
               type: transactionInfo.type || 'transaction',
@@ -214,7 +207,7 @@ export class MempoolMonitorFree {
               message: transactionInfo.message || `Transaction: ${signature.substring(0, 8)}...`
             });
           }
-          
+
           // Check for buy orders
           if (transactionInfo.transactionType === 'buy' && transactionInfo.solAmount >= 0.2) {
             const buyInfo = {
@@ -223,7 +216,7 @@ export class MempoolMonitorFree {
               tokenAddress: this.targetTokenAddress.toString(),
               timestamp: new Date().toISOString()
             };
-            
+
             Logger.success('Buy order detected via Helius Parse!', buyInfo);
             await onBuyDetected(buyInfo);
           }
@@ -232,6 +225,7 @@ export class MempoolMonitorFree {
           continue;
         }
       }
+
     } catch (error) {
       if (error.message?.includes('429')) {
         // Handle rate limit
