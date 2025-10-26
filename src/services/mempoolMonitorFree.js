@@ -11,7 +11,7 @@ export class MempoolMonitorFree {
   constructor(rpcUrl, wssUrl, targetTokenAddress, pumpProgramId, webServer = null) {
     this.rpcManager = new RPCManager();
     this.connection = this.rpcManager.getConnection();
-    this.targetTokenAddress = new PublicKey(targetTokenAddress);
+    this.targetTokenAddress = targetTokenAddress ? new PublicKey(targetTokenAddress) : null;
     this.pumpProgramId = pumpProgramId;
     this.webServer = webServer;
     this.subscriptionId = null;
@@ -19,6 +19,7 @@ export class MempoolMonitorFree {
     this.isRunning = false;
     this.processedSignatures = new Set();
     this.maxProcessedSignatures = 1000; // Prevent memory leak
+    this.heartbeatInterval = null; // For regular status updates
   }
 
   /**
@@ -31,17 +32,27 @@ export class MempoolMonitorFree {
       return;
     }
 
+    if (!this.targetTokenAddress) {
+      Logger.log('No target token set - waiting for token configuration');
+      return;
+    }
+
     Logger.log('Starting free RPC monitor...');
-    Logger.log(`Monitoring token: ${this.targetTokenAddress.toString()}`);
+    const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'no token set';
+    Logger.log(`Monitoring token: ${tokenStr}`);
     Logger.log('Note: Using confirmed transactions (slightly delayed, but free)');
-    
+
     this.isRunning = true;
 
     try {
       // Use only polling strategy to avoid rate limits
       this.startPolling(onBuyDetected);
-      
-      Logger.success('Polling monitor started (checks every 5s to avoid rate limits)');
+
+      // Start heartbeat for regular status updates
+      this.startHeartbeat();
+
+      Logger.success('Polling monitor started (checks every 10s)');
+      Logger.success('Heartbeat active (status updates every 15s)');
 
     } catch (error) {
       Logger.error('Failed to start monitor', error);
@@ -136,22 +147,65 @@ export class MempoolMonitorFree {
       // Use Helius Parse API for better transaction parsing
       const parseApiUrl = 'https://api.helius.xyz/v0/transactions/?api-key=8fa5a141-a272-488e-8dba-edb177602cf9';
 
-      // Get bonding curve address
-      const bondingCurve = await this.deriveBondingCurveAddress(this.targetTokenAddress);
-      
-      // Fetch recent signatures for the bonding curve
-      const signatures = await this.connection.getSignaturesForAddress(
-        bondingCurve,
-        { limit: 5 }, // Only check last 5 transactions
-        'confirmed'
-      );
+      // Monitor the token directly (not just bonding curve)
+      const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
+      Logger.log(`Monitoring token: ${tokenStr}...`);
+
+      // Try bonding curve first (for pump.fun tokens)
+      let signatures = [];
+      try {
+        const bondingCurve = await this.deriveBondingCurveAddress(this.targetTokenAddress);
+        signatures = await this.connection.getSignaturesForAddress(
+          bondingCurve,
+          { limit: 10 }, // Check more transactions
+          'confirmed'
+        );
+        Logger.log(`Found ${signatures.length} transactions on bonding curve`);
+      } catch (error) {
+        Logger.warn('Bonding curve not found, trying direct token monitoring');
+      }
+
+      // If no bonding curve activity, check token directly
+      if (signatures.length === 0) {
+        try {
+          signatures = await this.connection.getSignaturesForAddress(
+            this.targetTokenAddress,
+            { limit: 10 },
+            'confirmed'
+          );
+          Logger.log(`Found ${signatures.length} transactions on token directly`);
+        } catch (error) {
+          Logger.warn('No transactions found for token');
+        }
+      }
+
+      // Always show activity status, even if no transactions
+      if (this.webServer) {
+        const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
+        const statusMessage = signatures.length > 0
+          ? `🔍 Found ${signatures.length} transactions - monitoring ${tokenStr}...`
+          : `🔍 Monitoring ${tokenStr}... - no recent transactions (token may be new)`;
+
+        this.webServer.emitTransaction({
+          signature: `status_${Date.now()}`,
+          type: 'monitor',
+          timestamp: new Date().toISOString(),
+          accounts: signatures.length,
+          solAmount: 0,
+          tokenAmount: 0,
+          transactionType: 'monitor',
+          message: statusMessage
+        });
+      }
 
       if (signatures.length === 0) {
-        Logger.log(`No recent transactions for token ${this.targetTokenAddress.toString().substring(0, 8)}...`);
+        const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
+        Logger.log(`No recent transactions for token ${tokenStr}... Token might be new or inactive.`);
         return;
       }
 
-      Logger.log(`Found ${signatures.length} recent transactions for token ${this.targetTokenAddress.toString().substring(0, 8)}...`);
+      const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'unknown';
+      Logger.log(`Found ${signatures.length} recent transactions for token ${tokenStr}...`);
       Logger.log(`Signatures: ${signatures.map(s => s.signature.substring(0, 8)).join(', ')}`);
 
       // Use Helius Parse API to get detailed transaction data
@@ -340,6 +394,29 @@ export class MempoolMonitorFree {
   }
 
   /**
+   * Start heartbeat for regular status updates
+   */
+  startHeartbeat() {
+    // Send heartbeat every 15 seconds to show bot is alive
+    this.heartbeatInterval = setInterval(() => {
+      if (this.webServer && this.isRunning) {
+        this.webServer.emitTransaction({
+          signature: `heartbeat_${Date.now()}`,
+          type: 'monitor',
+          timestamp: new Date().toISOString(),
+          accounts: 0,
+          solAmount: 0,
+          tokenAmount: 0,
+          transactionType: 'monitor',
+          message: `💓 Bot heartbeat - monitoring ${this.targetTokenAddress?.toString().substring(0, 8) || 'no token set'}...`
+        });
+      }
+    }, 15000); // 15 second intervals
+
+    Logger.log('Heartbeat started (updates every 15s)');
+  }
+
+  /**
    * Start periodic polling (backup strategy)
    */
   startPolling(onBuyDetected) {
@@ -349,7 +426,7 @@ export class MempoolMonitorFree {
         clearInterval(this.pollingInterval);
         return;
       }
-      
+
       await this.checkRecentTransactions(onBuyDetected);
     }, 10000); // 10 second intervals to avoid rate limiting
 
@@ -462,10 +539,16 @@ export class MempoolMonitorFree {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
     }
-    
+
+    // Stop heartbeat
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+
     this.isRunning = false;
     this.processedSignatures.clear();
-    
+
     Logger.success('Monitor stopped');
   }
 

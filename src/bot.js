@@ -93,15 +93,13 @@ export class SolanaBot {
       });
 
       // Re-initialize mempool monitor with web server reference
-      if (config.targetTokenAddress) {
-        this.mempoolMonitor = new MempoolMonitorFree(
-          config.rpcUrl,
-          config.wssUrl,
-          config.targetTokenAddress,
-          config.pumpProgramId,
-          this.webServer
-        );
-      }
+      this.mempoolMonitor = new MempoolMonitorFree(
+        config.rpcUrl,
+        config.wssUrl,
+        config.targetTokenAddress,
+        config.pumpProgramId,
+        this.webServer
+      );
 
       // Listen for token change requests from web interface
       this.webServer.io.on('connection', (socket) => {
@@ -150,7 +148,7 @@ export class SolanaBot {
         message: 'Bot is monitoring for transactions',
         buyThreshold: this.buyThreshold,
         sellPercentage: this.sellPercentage,
-        targetToken: this.mempoolMonitor ? this.mempoolMonitor.targetTokenAddress.toString() : null
+        targetToken: config.targetTokenAddress
       });
     } catch (error) {
       Logger.error('Failed to start bot', error);
@@ -224,6 +222,9 @@ export class SolanaBot {
       
       await this.tokenTracker.initialize();
       
+      // Update token in config
+      config.targetTokenAddress = newTokenAddress;
+
       // Update mempool monitor with new token
       this.mempoolMonitor = new MempoolMonitorFree(
         config.rpcUrl,

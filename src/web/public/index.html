@@ -364,6 +364,8 @@
             if (data.targetToken) {
                 currentToken.textContent = data.targetToken.substring(0, 8) + '...';
                 tokenInput.value = data.targetToken;
+                // Show success message when token is set
+                liveStatus.textContent = '🟢 Monitoring ' + data.targetToken.substring(0, 8) + '...';
             }
             updateLiveStatus('🟢 Bot Active');
         });
@@ -381,7 +383,7 @@
             totalTransactions.textContent = transactionCount;
             updateLastUpdated();
 
-            // Show all transactions
+            // Show all transactions including monitoring status
             addTransactionToTable(data);
         });
 
@@ -482,7 +484,7 @@
         function addTransactionToTable(tx) {
             // Remove initial message if it exists
             const initialRow = transactionTable.querySelector('tr td[colspan="5"]');
-            if (initialRow && initialRow.textContent.includes('Enter a token address')) {
+            if (initialRow && (initialRow.textContent.includes('Enter a token address') || initialRow.textContent.includes('Monitoring token'))) {
                 transactionTable.innerHTML = '';
             }
 
@@ -503,10 +505,15 @@
             const accounts = tx.accounts || 0;
             const shortSig = tx.signature ? tx.signature.substring(0, 16) + '...' : 'N/A';
 
+            // Special styling for monitoring status
+            const isMonitoring = tx.transactionType === 'monitor';
+            const typeColor = isMonitoring ? '#6b7280' : '#f1f5f9';
+            const bgColor = isMonitoring ? 'rgba(107, 114, 128, 0.1)' : '';
+
             row.innerHTML = `
                 <td style="padding: 12px 16px; color: #e2e8f0; font-size: 0.9rem;">${time}</td>
                 <td style="padding: 12px 16px;">
-                    <span style="display: inline-flex; align-items: center; gap: 4px; font-weight: 500; font-size: 0.9rem;">
+                    <span style="display: inline-flex; align-items: center; gap: 4px; font-weight: 500; font-size: 0.9rem; color: ${typeColor}; background: ${bgColor}; padding: 2px 8px; border-radius: 4px;">
                         ${getTransactionEmoji(tx.transactionType)}
                         ${tx.transactionType?.toUpperCase() || 'UNKNOWN'}
                     </span>
