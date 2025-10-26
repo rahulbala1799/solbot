@@ -182,43 +182,57 @@ export class MempoolMonitorFree {
 
       // Process parsed transactions
       for (const parsedTx of parsedTransactions) {
-        const signature = parsedTx.transaction.signatures[0];
-        
-        // Skip if already processed
-        if (this.processedSignatures.has(signature)) {
-          continue;
-        }
-
-        this.processedSignatures.add(signature);
-
-        // Parse transaction using Helius data
-        const transactionInfo = this.parseHeliusTransaction(parsedTx);
-        
-        // Emit transaction to web interface
-        if (this.webServer) {
-          this.webServer.emitTransaction({
-            signature: signature,
-            type: transactionInfo.type || 'transaction',
-            timestamp: new Date().toISOString(),
-            accounts: parsedTx.transaction.message.accountKeys.length,
-            solAmount: transactionInfo.solAmount,
-            tokenAmount: transactionInfo.tokenAmount,
-            transactionType: transactionInfo.transactionType,
-            message: transactionInfo.message || `Transaction: ${signature.substring(0, 8)}...`
-          });
-        }
-        
-        // Check for buy orders
-        if (transactionInfo.transactionType === 'buy' && transactionInfo.solAmount >= 0.2) {
-          const buyInfo = {
-            signature: signature,
-            solAmount: transactionInfo.solAmount,
-            tokenAddress: this.targetTokenAddress.toString(),
-            timestamp: new Date().toISOString()
-          };
+        try {
+          // Handle different response structures from Helius
+          let signature;
+          if (parsedTx.transaction && parsedTx.transaction.signatures) {
+            signature = parsedTx.transaction.signatures[0];
+          } else if (parsedTx.signature) {
+            signature = parsedTx.signature;
+          } else {
+            Logger.warn('Could not find signature in parsed transaction:', parsedTx);
+            continue;
+          }
           
-          Logger.success('Buy order detected via Helius Parse!', buyInfo);
-          await onBuyDetected(buyInfo);
+          // Skip if already processed
+          if (this.processedSignatures.has(signature)) {
+            continue;
+          }
+
+          this.processedSignatures.add(signature);
+
+          // Parse transaction using Helius data
+          const transactionInfo = this.parseHeliusTransaction(parsedTx);
+          
+          // Emit transaction to web interface
+          if (this.webServer) {
+            this.webServer.emitTransaction({
+              signature: signature,
+              type: transactionInfo.type || 'transaction',
+              timestamp: new Date().toISOString(),
+              accounts: parsedTx.transaction?.message?.accountKeys?.length || 0,
+              solAmount: transactionInfo.solAmount,
+              tokenAmount: transactionInfo.tokenAmount,
+              transactionType: transactionInfo.transactionType,
+              message: transactionInfo.message || `Transaction: ${signature.substring(0, 8)}...`
+            });
+          }
+          
+          // Check for buy orders
+          if (transactionInfo.transactionType === 'buy' && transactionInfo.solAmount >= 0.2) {
+            const buyInfo = {
+              signature: signature,
+              solAmount: transactionInfo.solAmount,
+              tokenAddress: this.targetTokenAddress.toString(),
+              timestamp: new Date().toISOString()
+            };
+            
+            Logger.success('Buy order detected via Helius Parse!', buyInfo);
+            await onBuyDetected(buyInfo);
+          }
+        } catch (error) {
+          Logger.error('Error processing parsed transaction:', error.message);
+          continue;
         }
       }
     } catch (error) {
@@ -479,7 +493,16 @@ export class MempoolMonitorFree {
    */
   parseHeliusTransaction(parsedTx) {
     try {
-      const signature = parsedTx.transaction.signatures[0];
+      // Get signature safely
+      let signature;
+      if (parsedTx.transaction && parsedTx.transaction.signatures) {
+        signature = parsedTx.transaction.signatures[0];
+      } else if (parsedTx.signature) {
+        signature = parsedTx.signature;
+      } else {
+        signature = 'unknown';
+      }
+      
       const events = parsedTx.events || [];
       const nativeTransfers = parsedTx.nativeTransfers || [];
       const tokenTransfers = parsedTx.tokenTransfers || [];
@@ -512,6 +535,10 @@ export class MempoolMonitorFree {
       } else if (tokenTransfers.length > 0) {
         transactionType = 'pump';
         message = `⚡ PUMP: ${solAmount.toFixed(4)} SOL`;
+      } else if (solAmount > 0) {
+        // If we have SOL movement but no specific events, it's still a transaction
+        transactionType = 'transaction';
+        message = `📄 Transaction: ${solAmount.toFixed(4)} SOL`;
       }
       
       return {
@@ -528,7 +555,7 @@ export class MempoolMonitorFree {
         solAmount: 0,
         tokenAmount: 0,
         transactionType: 'unknown',
-        message: `Transaction: ${parsedTx.transaction.signatures[0].substring(0, 8)}...`
+        message: `Transaction: ${signature?.substring(0, 8) || 'unknown'}...`
       };
     }
   }
