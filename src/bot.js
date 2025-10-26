@@ -80,6 +80,15 @@ export class SolanaBot {
         sellPercentage: this.sellPercentage
       });
 
+      // Re-initialize mempool monitor with web server reference
+      this.mempoolMonitor = new MempoolMonitorFree(
+        config.rpcUrl,
+        config.wssUrl,
+        config.targetTokenAddress,
+        config.pumpProgramId,
+        this.webServer
+      );
+
       Logger.success('Bot initialized successfully!');
       return true;
     } catch (error) {
@@ -116,6 +125,17 @@ export class SolanaBot {
         buyThreshold: this.buyThreshold,
         sellPercentage: this.sellPercentage
       });
+
+      // Send a test transaction to verify web interface is working
+      setTimeout(() => {
+        this.webServer.emitTransaction({
+          signature: 'test123456789',
+          type: 'test',
+          timestamp: new Date().toISOString(),
+          accounts: 5,
+          message: '🎯 Bot is now monitoring pump.fun transactions!'
+        });
+      }, 2000);
     } catch (error) {
       Logger.error('Failed to start bot', error);
       this.isRunning = false;
