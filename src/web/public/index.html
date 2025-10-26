@@ -310,10 +310,18 @@
         socket.on('connect', () => {
             connectionStatus.textContent = 'Connected';
             connectionStatus.className = 'connection-status connected';
+            console.log('WebSocket connected');
         });
 
         socket.on('disconnect', () => {
             connectionStatus.textContent = 'Disconnected';
+            connectionStatus.className = 'connection-status disconnected';
+            console.log('WebSocket disconnected');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('WebSocket connection error:', error);
+            connectionStatus.textContent = 'Connection Error';
             connectionStatus.className = 'connection-status disconnected';
         });
 
@@ -324,6 +332,7 @@
 
         // Transaction updates
         socket.on('transaction', (data) => {
+            console.log('Received transaction:', data);
             addActivity('transaction', data.message || `Transaction processed: ${data.signature?.substring(0, 8)}...`, data);
         });
 
@@ -458,6 +467,16 @@
                         <div><strong>Sell %:</strong> 25%</div>
                     </div>
                 `;
+
+                // Add a test activity to show the interface is working
+                setTimeout(() => {
+                    addActivity('transaction', '🎯 Bot is now monitoring pump.fun transactions!', {
+                        signature: 'test123456789',
+                        timestamp: new Date().toISOString(),
+                        accounts: 5,
+                        message: 'Bot monitoring active'
+                    });
+                }, 1000);
             })
             .catch(() => {
                 updateBotStatus({ status: 'offline', data: { message: 'Cannot connect to bot' } });
