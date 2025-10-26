@@ -1,0 +1,182 @@
+import { Connection } from '@solana/web3.js';
+import { MempoolMonitorFree } from './services/mempoolMonitorFree.js';
+import { TokenTracker } from './services/tokenTracker.js';
+import { TradeExecutor, keypairFromPrivateKey } from './services/tradeExecutor.js';
+import { Logger } from './utils/logger.js';
+import { config } from './config.js';
+
+export class SolanaBot {
+  constructor() {
+    this.connection = null;
+    this.mempoolMonitor = null;
+    this.tokenTracker = null;
+    this.tradeExecutor = null;
+    this.wallet = null;
+    this.isRunning = false;
+    this.buyThreshold = config.buyThresholdSol;
+    this.sellPercentage = config.sellPercentage;
+  }
+
+  /**
+   * Initialize the bot with configuration
+   */
+  async initialize() {
+    try {
+      Logger.log('Initializing Solana Bot...');
+      
+      // Validate configuration
+      config.validate();
+
+      // Create connection
+      this.connection = new Connection(config.rpcUrl, {
+        commitment: 'confirmed',
+        wsEndpoint: config.wssUrl
+      });
+
+      // Create wallet keypair
+      this.wallet = keypairFromPrivateKey(config.walletPrivateKey);
+      Logger.log(`Wallet address: ${this.wallet.publicKey.toString()}`);
+
+      // Initialize services (using free RPC-compatible monitor)
+      this.mempoolMonitor = new MempoolMonitorFree(
+        config.rpcUrl,
+        config.wssUrl,
+        config.targetTokenAddress,
+        config.pumpProgramId
+      );
+
+      this.tokenTracker = new TokenTracker(
+        this.connection,
+        this.wallet.publicKey,
+        config.targetTokenAddress
+      );
+
+      await this.tokenTracker.initialize();
+
+      this.tradeExecutor = new TradeExecutor(
+        this.connection,
+        this.wallet,
+        config.targetTokenAddress,
+        config.pumpProgramId
+      );
+
+      // Check initial balance
+      const balance = await this.tokenTracker.getBalance();
+      Logger.log(`Initial token balance: ${balance}`);
+
+      Logger.success('Bot initialized successfully!');
+      return true;
+    } catch (error) {
+      Logger.error('Failed to initialize bot', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Start the bot
+   */
+  async start() {
+    if (this.isRunning) {
+      Logger.warn('Bot is already running');
+      return;
+    }
+
+    try {
+      Logger.log('Starting bot...');
+      this.isRunning = true;
+
+      // Start monitoring mempool
+      await this.mempoolMonitor.start(async (buyInfo) => {
+        await this.handleBuyDetected(buyInfo);
+      });
+
+      Logger.success('Bot is now running!');
+      Logger.log(`Watching for buy orders > ${this.buyThreshold} SOL`);
+      Logger.log(`Will sell ${this.sellPercentage}% on trigger`);
+    } catch (error) {
+      Logger.error('Failed to start bot', error);
+      this.isRunning = false;
+      throw error;
+    }
+  }
+
+  /**
+   * Handle detected buy order
+   */
+  async handleBuyDetected(buyInfo) {
+    try {
+      Logger.log('Processing detected buy order...', buyInfo);
+
+      // Check if buy amount meets threshold
+      if (buyInfo.solAmount < this.buyThreshold) {
+        Logger.log(`Buy amount ${buyInfo.solAmount} SOL is below threshold ${this.buyThreshold} SOL, skipping...`);
+        return;
+      }
+
+      Logger.success(`Buy threshold met! ${buyInfo.solAmount} SOL >= ${this.buyThreshold} SOL`);
+
+      // Calculate sell amount
+      const sellAmount = await this.tokenTracker.calculateSellAmount(this.sellPercentage);
+
+      if (sellAmount === 0) {
+        Logger.warn('No tokens available to sell');
+        return;
+      }
+
+      // Execute sell
+      Logger.log(`Executing sell order for ${this.sellPercentage}% (${sellAmount} tokens)...`);
+      const result = await this.tradeExecutor.executeSell(sellAmount);
+
+      if (result) {
+        Logger.success('Sell order completed!', result);
+        
+        // Log updated balance
+        const newBalance = await this.tokenTracker.getBalance();
+        Logger.log(`New token balance: ${newBalance}`);
+      } else {
+        Logger.error('Sell order failed');
+      }
+    } catch (error) {
+      Logger.error('Error handling buy detection', error);
+    }
+  }
+
+  /**
+   * Stop the bot
+   */
+  async stop() {
+    if (!this.isRunning) {
+      return;
+    }
+
+    try {
+      Logger.log('Stopping bot...');
+      
+      if (this.mempoolMonitor) {
+        await this.mempoolMonitor.stop();
+      }
+
+      this.isRunning = false;
+      Logger.success('Bot stopped successfully');
+    } catch (error) {
+      Logger.error('Error stopping bot', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get bot status
+   */
+  getStatus() {
+    return {
+      isRunning: this.isRunning,
+      walletAddress: this.wallet?.publicKey.toString(),
+      targetToken: config.targetTokenAddress,
+      buyThreshold: this.buyThreshold,
+      sellPercentage: this.sellPercentage,
+      mempoolMonitorActive: this.mempoolMonitor?.isActive() || false,
+      tradeInProgress: this.tradeExecutor?.isTradeInProgress() || false
+    };
+  }
+}
+
