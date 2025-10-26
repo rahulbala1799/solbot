@@ -39,42 +39,10 @@ export class MempoolMonitorFree {
     this.isRunning = true;
 
     try {
-      // Strategy 1: Subscribe to program logs
-      this.subscriptionId = this.connection.onLogs(
-        this.pumpProgramId,
-        async (logs, context) => {
-          try {
-            await this.processTransactionLogs(logs, onBuyDetected);
-          } catch (error) {
-            Logger.error('Error processing transaction', error);
-          }
-        },
-        'confirmed' // Use 'confirmed' commitment for free RPCs
-      );
-
-      Logger.success(`Program log monitor started (ID: ${this.subscriptionId})`);
-
-      // Strategy 2: Also monitor the bonding curve account for changes
-      try {
-        const bondingCurve = await this.deriveBondingCurveAddress(this.targetTokenAddress);
-        
-        this.accountSubscriptionId = this.connection.onAccountChange(
-          bondingCurve,
-          async (accountInfo, context) => {
-            Logger.log('Bonding curve account changed - potential trade detected');
-            // When bonding curve changes, fetch recent transactions
-            await this.checkRecentTransactions(onBuyDetected);
-          },
-          'confirmed'
-        );
-
-        Logger.success(`Account monitor started (ID: ${this.accountSubscriptionId})`);
-      } catch (error) {
-        Logger.warn('Could not start account monitor (optional)', error.message);
-      }
-
-      // Strategy 3: Periodic polling as backup
+      // Use only polling strategy to avoid rate limits
       this.startPolling(onBuyDetected);
+      
+      Logger.success('Polling monitor started (checks every 5s to avoid rate limits)');
 
     } catch (error) {
       Logger.error('Failed to start monitor', error);
@@ -207,7 +175,7 @@ export class MempoolMonitorFree {
    * Start periodic polling (backup strategy)
    */
   startPolling(onBuyDetected) {
-    // Poll every 2 seconds
+    // Poll every 5 seconds to avoid rate limits
     this.pollingInterval = setInterval(async () => {
       if (!this.isRunning) {
         clearInterval(this.pollingInterval);
@@ -215,9 +183,9 @@ export class MempoolMonitorFree {
       }
       
       await this.checkRecentTransactions(onBuyDetected);
-    }, 2000); // 2 second intervals to avoid rate limiting
+    }, 5000); // 5 second intervals to avoid rate limiting
 
-    Logger.success('Polling monitor started (checks every 2s)');
+    Logger.success('Polling monitor started (checks every 5s)');
   }
 
   /**
