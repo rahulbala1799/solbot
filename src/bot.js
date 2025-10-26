@@ -131,23 +131,12 @@ export class SolanaBot {
       Logger.log(`Watching for buy orders > ${this.buyThreshold} SOL`);
       Logger.log(`Will sell ${this.sellPercentage}% on trigger`);
 
-      // Update web interface
-      this.webServer.emitBotStatus('running', {
-        message: 'Bot is monitoring for transactions',
-        buyThreshold: this.buyThreshold,
-        sellPercentage: this.sellPercentage
-      });
-
-      // Send a test transaction to verify web interface is working
-      setTimeout(() => {
-        this.webServer.emitTransaction({
-          signature: 'test123456789',
-          type: 'test',
-          timestamp: new Date().toISOString(),
-          accounts: 5,
-          message: '🎯 Bot is now monitoring pump.fun transactions!'
+        // Update web interface
+        this.webServer.emitBotStatus('running', {
+          message: 'Bot is monitoring for transactions',
+          buyThreshold: this.buyThreshold,
+          sellPercentage: this.sellPercentage
         });
-      }, 2000);
     } catch (error) {
       Logger.error('Failed to start bot', error);
       this.isRunning = false;

@@ -172,16 +172,11 @@ export class MempoolMonitorFree {
         Logger.log('Sample transaction structure:', JSON.stringify(parsedTransactions[0], null, 2));
       }
 
-      // Emit monitoring status
+      // Emit monitoring status (not as transaction)
       if (this.webServer) {
-        this.webServer.emitTransaction({
-          signature: `monitor_${Date.now()}`,
-          type: 'monitor',
-          timestamp: new Date().toISOString(),
-          accounts: parsedTransactions.length,
-          solAmount: 0,
-          transactionType: 'monitor',
-          message: `🔍 Parsed ${parsedTransactions.length} transactions for ${this.targetTokenAddress.toString().substring(0, 8)}...`
+        this.webServer.emitBotStatus('running', {
+          message: `Parsed ${parsedTransactions.length} transactions for ${this.targetTokenAddress.toString().substring(0, 8)}...`,
+          lastCheck: new Date().toISOString()
         });
       }
 
