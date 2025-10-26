@@ -284,14 +284,27 @@
             </div>
         </div>
 
-        <!-- Transactions Table -->
+        <!-- Bot Status Section -->
         <div class="section">
             <h3 class="section-title">
-                📊 Live Transactions
+                🤖 Bot Status
                 <span id="liveStatus" style="font-size: 0.8rem; color: #10b981; font-weight: 400;">
                     🔴 Ready
                 </span>
             </h3>
+            <div style="background: rgba(255, 255, 255, 0.03); border-radius: 12px; padding: 20px;">
+                <div id="botStatusMessage" style="color: #94a3b8; font-style: italic;">
+                    Enter a token address above to start monitoring...
+                </div>
+                <div style="margin-top: 12px; font-size: 0.8rem; color: #64748b;">
+                    Last check: <span id="lastCheckTime">Never</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions Table -->
+        <div class="section">
+            <h3 class="section-title">📊 Live Transactions</h3>
 
             <div style="overflow-x: auto; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
                 <table style="width: 100%; border-collapse: collapse;">
@@ -333,6 +346,8 @@
         const tokenInput = document.getElementById('tokenInput');
         const setTokenBtn = document.getElementById('setTokenBtn');
         const transactionTable = document.getElementById('transactionTable');
+        const botStatusMessage = document.getElementById('botStatusMessage');
+        const lastCheckTime = document.getElementById('lastCheckTime');
 
         let transactionCount = 0;
         const maxTransactions = 10; // Only show last 10 transactions
@@ -364,9 +379,18 @@
             if (data.targetToken) {
                 currentToken.textContent = data.targetToken.substring(0, 8) + '...';
                 tokenInput.value = data.targetToken;
-                // Show success message when token is set
                 liveStatus.textContent = '🟢 Monitoring ' + data.targetToken.substring(0, 8) + '...';
             }
+
+            if (data.message) {
+                botStatusMessage.textContent = data.message;
+                botStatusMessage.style.color = data.transactionCount > 0 ? '#10b981' : '#94a3b8';
+            }
+
+            if (data.lastCheck) {
+                lastCheckTime.textContent = new Date(data.lastCheck).toLocaleTimeString();
+            }
+
             updateLiveStatus('🟢 Bot Active');
         });
 
@@ -376,15 +400,17 @@
             liveStatus.textContent = '🟢 Live Monitoring';
         });
 
-        // Transaction updates - show ALL transactions
+        // Transaction updates - only show real transactions, not monitoring status
         socket.on('transaction', (data) => {
             console.log('Received transaction:', data);
             transactionCount++;
             totalTransactions.textContent = transactionCount;
             updateLastUpdated();
 
-            // Show all transactions including monitoring status
-            addTransactionToTable(data);
+            // Only show real transactions, not monitoring/heartbeat messages
+            if (data.transactionType !== 'monitor') {
+                addTransactionToTable(data);
+            }
         });
 
         socket.on('buy-detected', (data) => {
@@ -459,11 +485,13 @@
                     transactionTable.innerHTML = `
                         <tr>
                             <td colspan="5" style="padding: 40px; text-align: center; color: #10b981; font-style: italic;">
-                                🔄 Monitoring token: ${tokenAddress.substring(0, 8)}...
+                                🔄 Monitoring token: ${tokenAddress.substring(0, 8)}... Waiting for transactions...
                             </td>
                         </tr>
                     `;
-                    alert('Token updated successfully!');
+                    // Clear input
+                    tokenInput.value = '';
+                    alert('Token updated successfully! Monitoring will start shortly.');
                 } else {
                     alert('Failed to update token: ' + (data.error || 'Unknown error'));
                 }
@@ -571,6 +599,16 @@
             .then(response => response.json())
             .then(data => {
                 console.log('Initial status:', data);
+                // Update initial status
+                if (data.botStatus) {
+                    botStatusMessage.textContent = 'Bot is running - enter a token address above to start monitoring';
+                    botStatusMessage.style.color = '#10b981';
+                    liveStatus.textContent = '🟢 Bot Ready';
+                } else {
+                    botStatusMessage.textContent = 'Bot is initializing...';
+                    botStatusMessage.style.color = '#94a3b8';
+                    liveStatus.textContent = '🟡 Initializing';
+                }
             })
             .catch(() => {
                 console.log('Could not load initial status');

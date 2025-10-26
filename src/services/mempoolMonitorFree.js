@@ -185,15 +185,11 @@ export class MempoolMonitorFree {
           ? `🔍 Found ${signatures.length} transactions - monitoring ${tokenStr}...`
           : `🔍 Monitoring ${tokenStr}... - no recent transactions (token may be new)`;
 
-        this.webServer.emitTransaction({
-          signature: `status_${Date.now()}`,
-          type: 'monitor',
-          timestamp: new Date().toISOString(),
-          accounts: signatures.length,
-          solAmount: 0,
-          tokenAmount: 0,
-          transactionType: 'monitor',
-          message: statusMessage
+        // Emit status update (not as transaction)
+        this.webServer.emitBotStatus('running', {
+          message: statusMessage,
+          transactionCount: signatures.length,
+          lastCheck: new Date().toISOString()
         });
       }
 
@@ -397,15 +393,10 @@ export class MempoolMonitorFree {
     // Send heartbeat every 15 seconds to show bot is alive
     this.heartbeatInterval = setInterval(() => {
       if (this.webServer && this.isRunning) {
-        this.webServer.emitTransaction({
-          signature: `heartbeat_${Date.now()}`,
-          type: 'monitor',
-          timestamp: new Date().toISOString(),
-          accounts: 0,
-          solAmount: 0,
-          tokenAmount: 0,
-          transactionType: 'monitor',
-          message: `💓 Bot heartbeat - monitoring ${this.targetTokenAddress?.toString().substring(0, 8) || 'no token set'}...`
+        const tokenStr = this.targetTokenAddress?.toString().substring(0, 8) || 'no token set';
+        this.webServer.emitBotStatus('running', {
+          message: `💓 Bot heartbeat - monitoring ${tokenStr}...`,
+          heartbeat: new Date().toISOString()
         });
       }
     }, 15000); // 15 second intervals
