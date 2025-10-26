@@ -112,6 +112,24 @@
             font-size: 1.3rem;
         }
 
+        .pump-activity-feed {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            border: 2px solid #e94560;
+        }
+
+        .pump-activity-feed h3 {
+            color: #e94560;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            text-align: center;
+            border-bottom: 2px solid #e94560;
+            padding-bottom: 10px;
+        }
+
         .activity-item {
             padding: 15px;
             border-left: 4px solid #667eea;
@@ -136,6 +154,36 @@
 
         .activity-item.error {
             border-left-color: #ff9800;
+        }
+
+        .pump-transaction {
+            padding: 15px;
+            border-left: 4px solid #e94560;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #2a2a4e, #1e1e3e);
+            border-radius: 0 10px 10px 0;
+            transition: all 0.3s ease;
+            color: #e0e0e0;
+        }
+
+        .pump-transaction:hover {
+            background: linear-gradient(135deg, #3a3a5e, #2e2e4e);
+            transform: translateX(5px);
+        }
+
+        .pump-transaction.buy {
+            border-left-color: #4CAF50;
+            background: linear-gradient(135deg, #1e3a1e, #2a4a2a);
+        }
+
+        .pump-transaction.sell {
+            border-left-color: #f44336;
+            background: linear-gradient(135deg, #3a1e1e, #4a2a2a);
+        }
+
+        .pump-transaction.pump {
+            border-left-color: #e94560;
+            background: linear-gradient(135deg, #4a1e3a, #5a2e4e);
         }
 
         .activity-time {
@@ -294,6 +342,13 @@
                 <div class="no-activity">Waiting for activity...</div>
             </div>
         </div>
+
+        <div class="pump-activity-feed">
+            <h3>⚡ Pump.fun Live Transactions</h3>
+            <div id="pumpActivityFeed">
+                <div class="no-activity">Waiting for pump.fun transactions...</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -342,7 +397,14 @@
         socket.on('transaction', (data) => {
             console.log('Received transaction:', data);
             const message = data.message || `${data.transactionType || 'Transaction'}: ${data.signature?.substring(0, 8)}...`;
+            
+            // Add to general activity feed
             addActivity(data.transactionType || 'transaction', message, data);
+            
+            // Add to pump activity feed if it's a pump transaction
+            if (data.transactionType === 'buy' || data.transactionType === 'sell' || data.transactionType === 'pump') {
+                addPumpActivity(data);
+            }
         });
 
         socket.on('buy-detected', (data) => {
@@ -490,6 +552,44 @@
             .catch(() => {
                 updateBotStatus({ status: 'offline', data: { message: 'Cannot connect to bot' } });
             });
+
+        // Function to add pump transactions to dedicated section
+        function addPumpActivity(data) {
+            const pumpFeed = document.getElementById('pumpActivityFeed');
+            
+            // Remove "no activity" message if it exists
+            const noActivity = pumpFeed.querySelector('.no-activity');
+            if (noActivity) {
+                noActivity.remove();
+            }
+
+            const pumpItem = document.createElement('div');
+            pumpItem.className = `pump-transaction ${data.transactionType || 'pump'}`;
+            
+            const time = new Date(data.timestamp).toLocaleTimeString();
+            const solAmount = data.solAmount ? ` (${data.solAmount.toFixed(4)} SOL)` : '';
+            const emoji = data.transactionType === 'buy' ? '🟢' : data.transactionType === 'sell' ? '🔴' : '⚡';
+            
+            pumpItem.innerHTML = `
+                <div class="activity-time" style="color: #888; font-size: 0.9rem;">${time}</div>
+                <div class="activity-message" style="font-weight: bold; margin: 5px 0;">
+                    ${emoji} ${data.message || `${data.transactionType?.toUpperCase() || 'PUMP'}: ${data.signature?.substring(0, 8)}...`}${solAmount}
+                </div>
+                <div class="activity-details" style="font-size: 0.8rem; color: #aaa;">
+                    ${data.signature ? `Signature: ${data.signature.substring(0, 16)}...` : ''}
+                    ${data.accounts ? ` | Accounts: ${data.accounts}` : ''}
+                </div>
+            `;
+
+            // Add new pump activity to top
+            pumpFeed.insertBefore(pumpItem, pumpFeed.firstChild);
+
+            // Limit number of pump activities shown
+            const pumpActivities = pumpFeed.querySelectorAll('.pump-transaction');
+            if (pumpActivities.length > 20) {
+                pumpActivities[pumpActivities.length - 1].remove();
+            }
+        }
 
         // Function to change monitored token
         function changeToken() {
