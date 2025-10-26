@@ -7,7 +7,10 @@
   "scripts": {
     "start": "node src/index.js",
     "cli": "node src/cli-bot.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "web": "next dev",
+    "build": "next build",
+    "web:start": "next start"
   },
   "keywords": [
     "solana",
@@ -23,6 +26,22 @@
     "bs58": "^5.0.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "socket.io": "^4.7.4"
+    "socket.io": "^4.7.4",
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io-client": "^4.7.4",
+    "lucide-react": "^0.294.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0"
   }
 }

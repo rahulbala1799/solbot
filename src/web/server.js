@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export class WebServer {
-  constructor(port = 3000) {
+  constructor(port = 3001) {
     this.port = port;
     this.app = express();
     this.server = createServer(this.app);
