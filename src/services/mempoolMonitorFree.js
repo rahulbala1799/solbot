@@ -1,5 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import { Logger } from '../utils/logger.js';
+import { RPCManager } from '../utils/rpcManager.js';
 
 /**
  * Free RPC-compatible mempool monitor
@@ -8,10 +9,8 @@ import { Logger } from '../utils/logger.js';
  */
 export class MempoolMonitorFree {
   constructor(rpcUrl, wssUrl, targetTokenAddress, pumpProgramId, webServer = null) {
-    this.connection = new Connection(rpcUrl, {
-      commitment: 'confirmed', // Use 'confirmed' for free RPCs
-      wsEndpoint: wssUrl
-    });
+    this.rpcManager = new RPCManager();
+    this.connection = this.rpcManager.getConnection();
     this.targetTokenAddress = new PublicKey(targetTokenAddress);
     this.pumpProgramId = pumpProgramId;
     this.webServer = webServer;
@@ -128,6 +127,9 @@ export class MempoolMonitorFree {
    */
   async checkRecentTransactions(onBuyDetected) {
     try {
+      // Get current connection (may switch if rate limited)
+      this.connection = this.rpcManager.getConnection();
+      
       // Get bonding curve address
       const bondingCurve = await this.deriveBondingCurveAddress(this.targetTokenAddress);
       
@@ -137,6 +139,9 @@ export class MempoolMonitorFree {
         { limit: 5 }, // Only check last 5 transactions
         'confirmed'
       );
+
+      // Reset rate limit counter on successful request
+      this.rpcManager.resetRateLimit();
 
       // Process each signature
       for (const sigInfo of signatures) {
@@ -150,22 +155,38 @@ export class MempoolMonitorFree {
         this.processedSignatures.add(signature);
 
         // Fetch and parse transaction
-        const tx = await this.connection.getTransaction(signature, {
-          commitment: 'confirmed',
-          maxSupportedTransactionVersion: 0
-        });
+        try {
+          const tx = await this.connection.getTransaction(signature, {
+            commitment: 'confirmed',
+            maxSupportedTransactionVersion: 0
+          });
 
-        if (tx) {
-          const buyInfo = this.parseBuyOrder(tx);
-          if (buyInfo) {
-            Logger.success('Buy order detected via polling!', buyInfo);
-            await onBuyDetected(buyInfo);
+          if (tx) {
+            const buyInfo = this.parseBuyOrder(tx);
+            if (buyInfo) {
+              Logger.success('Buy order detected via polling!', buyInfo);
+              await onBuyDetected(buyInfo);
+            }
+          }
+        } catch (error) {
+          if (error.message?.includes('429')) {
+            // Handle rate limit
+            this.rpcManager.handleRateLimit();
+            Logger.warn('Rate limited, switching RPC...');
+            this.connection = this.rpcManager.getConnection();
+            break; // Exit loop and try again next time
+          } else if (!error.message?.includes('not found')) {
+            Logger.error(`Error fetching transaction ${signature}`, error.message);
           }
         }
       }
     } catch (error) {
-      // Don't log every polling error
-      if (!error.message?.includes('429')) { // Rate limit
+      if (error.message?.includes('429')) {
+        // Handle rate limit
+        this.rpcManager.handleRateLimit();
+        Logger.warn('Rate limited, switching RPC...');
+        this.connection = this.rpcManager.getConnection();
+      } else {
         Logger.error('Error checking recent transactions', error.message);
       }
     }
